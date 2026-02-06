@@ -83,7 +83,12 @@ export function Cart() {
             Revise os itens e conclua seu pedido direto com a equipe EncantArtes.
           </p>
           <Button asChild className="mt-6 w-full">
-            <a href={whatsappLink} target="_blank" rel="noreferrer">
+            <a
+              href={whatsappLink}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => clear()}
+            >
               Finalizar no WhatsApp
             </a>
           </Button>
