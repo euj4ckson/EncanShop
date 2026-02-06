@@ -34,12 +34,12 @@ export function Header() {
         </PrefetchLink>
 
         <div className="flex items-center gap-3">
-          <a
-            href="#produtos"
+          <PrefetchLink
+            to="/?view=products#produtos"
             className="hidden rounded-full border border-sand-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-700 transition hover:bg-white md:inline-flex"
           >
             Produtos
-          </a>
+          </PrefetchLink>
           <a
             href={whatsappLink}
             target="_blank"

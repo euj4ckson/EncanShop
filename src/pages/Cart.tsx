@@ -40,7 +40,15 @@ export function Cart() {
 
   return (
     <div className="section-shell pb-12 pt-28">
-      <h1 className="font-serif text-3xl text-ink-900">Carrinho</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-serif text-3xl text-ink-900">Carrinho</h1>
+        <PrefetchLink
+          to="/?view=products#produtos"
+          className="inline-flex rounded-full border border-sand-200/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-600 transition hover:bg-white"
+        >
+          Continuar comprando
+        </PrefetchLink>
+      </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
           {items.map((item) => (
