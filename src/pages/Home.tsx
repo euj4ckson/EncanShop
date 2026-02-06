@@ -115,7 +115,7 @@ export function Home() {
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <Button asChild>
-                    <a href="#produtos">Ver produtos</a>
+                    <a href="/?view=products#produtos">Ver produtos</a>
                   </Button>
                   <Button asChild variant="outline">
                     <a href={whatsappLink} target="_blank" rel="noreferrer">
