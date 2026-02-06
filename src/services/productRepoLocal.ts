@@ -1,21 +1,23 @@
 ﻿import seedProducts from "@/data/seedProducts.json";
-import { PAGE_SIZE, PRODUCTS_STORAGE_KEY } from "@/lib/config";
-import { readStorage, writeStorage } from "@/lib/storage";
+import { PAGE_SIZE } from "@/lib/config";
 import { slugify } from "@/lib/utils";
 import type { Product, ProductInput } from "@/types/product";
 import type { ProductListParams, ProductListResult, ProductRepo } from "@/services/productRepo";
 
+let runtimeProducts: Product[] | null = null;
+
 function ensureSeed(): Product[] {
-  const stored = readStorage<Product[] | null>(PRODUCTS_STORAGE_KEY, null);
-  if (!stored || stored.length === 0) {
-    writeStorage(PRODUCTS_STORAGE_KEY, seedProducts as Product[]);
-    return seedProducts as Product[];
+  if (!runtimeProducts) {
+    runtimeProducts = (seedProducts as Product[]).map((product) => ({
+      ...product,
+      images: [...product.images]
+    }));
   }
-  return stored;
+  return runtimeProducts;
 }
 
 function saveProducts(products: Product[]): void {
-  writeStorage(PRODUCTS_STORAGE_KEY, products);
+  runtimeProducts = products;
 }
 
 function applySearch(products: Product[], search?: string): Product[] {
@@ -105,9 +107,10 @@ export const ProductRepoLocal: ProductRepo = {
     const now = new Date().toISOString();
     const newProduct: Product = {
       ...input,
-      id: typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       slug: input.slug?.trim() || slugify(input.name),
       createdAt: now,
       updatedAt: now
@@ -140,6 +143,3 @@ export const ProductRepoLocal: ProductRepo = {
     saveProducts(products.filter((product) => product.id !== id));
   }
 };
-
-
-

@@ -3,7 +3,7 @@ import { prefetchRoute } from "@/routes/prefetch";
 
 export function PrefetchLink({ to, onMouseEnter, onFocus, ...props }: LinkProps) {
   const handlePrefetch = () => {
-    prefetchRoute(typeof to === "string" ? to : to.pathname ?? "");
+    prefetchRoute(typeof to === "string" ? to : (to.pathname ?? ""));
   };
   return (
     <Link
@@ -20,6 +20,3 @@ export function PrefetchLink({ to, onMouseEnter, onFocus, ...props }: LinkProps)
     />
   );
 }
-
-
-

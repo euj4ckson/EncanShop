@@ -8,9 +8,7 @@ export function buildWhatsAppLink(phoneDigits: string, message: string): string 
 }
 
 export function buildProductMessage(product: Product): string {
-  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(
-    product.price
-  )}.`;
+  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(product.price)}.`;
 }
 
 export function buildCartMessage(items: CartItem[], total: number): string {
@@ -18,9 +16,5 @@ export function buildCartMessage(items: CartItem[], total: number): string {
     (item) =>
       `- ${item.name} (Qtd ${item.quantity}) - ${formatCurrency(item.price * item.quantity)}`
   );
-  return `Olá! Quero comprar na EncantArtes:\n${lines.join("\n")}\nTotal: ${formatCurrency(
-    total
-  )}`;
+  return `Olá! Quero comprar na EncantArtes:\n${lines.join("\n")}\nTotal: ${formatCurrency(total)}`;
 }
-
-

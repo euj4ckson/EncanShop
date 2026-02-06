@@ -56,8 +56,8 @@ module.exports = {
       },
       borderRadius: {
         xl: "1rem",
-        '2xl': "1.5rem",
-        '3xl': "1.75rem"
+        "2xl": "1.5rem",
+        "3xl": "1.75rem"
       },
       boxShadow: {
         soft: "0 18px 60px rgba(31, 35, 40, 0.12)",
@@ -92,6 +92,3 @@ module.exports = {
   },
   plugins: []
 };
-
-
-

@@ -4,6 +4,3 @@
   printWidth: 100,
   trailingComma: "none"
 };
-
-
-

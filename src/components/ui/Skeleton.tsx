@@ -12,6 +12,3 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
     />
   );
 }
-
-
-

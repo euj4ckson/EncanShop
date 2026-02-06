@@ -25,9 +25,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const toast = useCallback((payload: ToastPayload) => {
-    const id = typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setToasts((prev) => [...prev, { ...payload, id }]);
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((item) => item.id !== id));
@@ -65,6 +66,3 @@ export function useToast(): ToastContextValue {
   }
   return context;
 }
-
-
-

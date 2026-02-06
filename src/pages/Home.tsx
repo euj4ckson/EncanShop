@@ -101,8 +101,8 @@ export function Home() {
               EncantArtes: velas e presentes com um toque editorial e contemporâneo.
             </h1>
             <p className="text-lg text-ink-600">
-              Descubra aromas sutis, texturas naturais e design minimalista para ambientes
-              que pedem calmaria e elegância.
+              Descubra aromas sutis, texturas naturais e design minimalista para ambientes que pedem
+              calmaria e elegância.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild>

@@ -1,4 +1,4 @@
-﻿[
+[
   {
     "id": "1b4a0f6b-0f6a-4f3b-8b10-49b0c2183a01",
     "name": "Vela Aurora Dourada",
@@ -7,8 +7,7 @@
     "description": "Vela artesanal com notas de baunilha e âmbar, ideal para criar um clima acolhedor.",
     "category": "Velas",
     "images": [
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1453831362806-3d5577f014a4?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1670581711663-73db151c61b7?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": true,
     "inStock": true,
@@ -23,7 +22,7 @@
     "description": "Blend floral delicado com cera vegetal e pavio de algodão.",
     "category": "Velas",
     "images": [
-      "https://images.unsplash.com/photo-1502069162409-3f20d9d9e4a5?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1597672960837-1a198bf47f42?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": true,
     "inStock": true,
@@ -38,8 +37,7 @@
     "description": "Kit com vela, difusor e sabonete artesanal para momentos de autocuidado.",
     "category": "Kits",
     "images": [
-      "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1643122941424-43e428ec899c?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": true,
     "inStock": true,
@@ -54,7 +52,7 @@
     "description": "Difusor de ambientes com notas amadeiradas e toque cítrico.",
     "category": "Aromas",
     "images": [
-      "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1612630711966-6cf62079234e?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": false,
     "inStock": true,
@@ -69,7 +67,7 @@
     "description": "Sabonete artesanal com manteiga de karité e fragrância cítrica suave.",
     "category": "Banho",
     "images": [
-      "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1554598222-46e5163f1354?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": false,
     "inStock": true,
@@ -84,7 +82,7 @@
     "description": "Peça decorativa em madeira com acabamento fosco e toque natural.",
     "category": "Decoração",
     "images": [
-      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1603281511551-abf160f200ce?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": false,
     "inStock": true,
@@ -99,7 +97,7 @@
     "description": "Vela aromática com canela e toque de açúcar mascavo.",
     "category": "Velas",
     "images": [
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1527954608120-c50f10ec23d3?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": true,
     "inStock": true,
@@ -114,7 +112,7 @@
     "description": "Home spray para renovar o ambiente com elegância e leveza.",
     "category": "Aromas",
     "images": [
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1655105501140-1d85e70715b7?auto=format&fit=crop&w=900&q=80"
     ],
     "featured": false,
     "inStock": true,
@@ -122,6 +120,3 @@
     "updatedAt": "2026-01-17T12:00:00.000Z"
   }
 ]
-
-
-

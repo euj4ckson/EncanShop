@@ -47,9 +47,7 @@ export function ProductCard({ product }: { product: Product }) {
       </PrefetchLink>
       <div className="flex flex-1 flex-col justify-between p-5">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-ink-500">
-            {product.category}
-          </p>
+          <p className="text-xs uppercase tracking-[0.2em] text-ink-500">{product.category}</p>
           <h3 className="mt-2 font-serif text-xl text-ink-900">{product.name}</h3>
           <p className="mt-2 text-sm text-ink-600">{clampText(product.description, 90)}</p>
         </div>
@@ -66,6 +64,3 @@ export function ProductCard({ product }: { product: Product }) {
     </div>
   );
 }
-
-
-

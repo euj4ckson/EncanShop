@@ -69,10 +69,7 @@ export function AdminProductForm({
   };
 
   return (
-    <form
-      onSubmit={form.handleSubmit(onSubmit)}
-      className="glass-panel space-y-4 p-6"
-    >
+    <form onSubmit={form.handleSubmit(onSubmit)} className="glass-panel space-y-4 p-6">
       <div>
         <Label htmlFor="name">Nome</Label>
         <Input id="name" {...form.register("name")} />
@@ -102,24 +99,23 @@ export function AdminProductForm({
       <div className="space-y-2">
         <Label>Imagens (até 3)</Label>
         {fields.map((field, index) => (
-        <div key={field.id} className="flex items-center gap-2">
-          <Input {...form.register(`images.${index}` as const)} />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => remove(index)}
-            aria-label="Remover imagem"
-          >
-            Remover
-          </Button>
-        </div>
+          <div key={field.id} className="flex items-center gap-2">
+            <Input {...form.register(`images.${index}` as const)} />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => remove(index)}
+              aria-label="Remover imagem"
+            >
+              Remover
+            </Button>
+          </div>
         ))}
         {form.formState.errors.images?.message ? (
           <p className="text-xs text-red-500">{form.formState.errors.images?.message}</p>
         ) : null}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => append("")} disabled={maxReached}
-          >
+          <Button type="button" variant="outline" onClick={() => append("")} disabled={maxReached}>
             Adicionar URL
           </Button>
           <label
@@ -161,5 +157,3 @@ export function AdminProductForm({
     </form>
   );
 }
-
-

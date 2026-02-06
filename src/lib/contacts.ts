@@ -24,5 +24,3 @@ export function getContacts(): Contacts {
 export function setContacts(data: Contacts): void {
   writeStorage(CONTACTS_STORAGE_KEY, data);
 }
-
-

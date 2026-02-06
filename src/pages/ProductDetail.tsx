@@ -128,9 +128,7 @@ export function ProductDetail() {
           <p className="text-lg text-ink-700">{product.description}</p>
           <div className="glass-panel p-4">
             <div className="flex items-end justify-between gap-4">
-              <p className="text-2xl font-semibold text-ink-900">
-                {formatCurrency(product.price)}
-              </p>
+              <p className="text-2xl font-semibold text-ink-900">{formatCurrency(product.price)}</p>
               <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
                 {product.inStock ? "Em estoque" : "Sob encomenda"}
               </span>
@@ -152,6 +150,3 @@ export function ProductDetail() {
     </div>
   );
 }
-
-
-

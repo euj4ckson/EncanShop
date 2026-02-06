@@ -46,5 +46,3 @@ describe("ProductCard", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("1");
   });
 });
-
-

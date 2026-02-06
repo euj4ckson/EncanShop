@@ -14,6 +14,3 @@ export function CartBadge({ count, className }: { count: number; className?: str
     </span>
   );
 }
-
-
-

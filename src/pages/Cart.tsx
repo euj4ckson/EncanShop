@@ -78,9 +78,7 @@ export function Cart() {
         </div>
         <div className="glass-panel h-fit p-6">
           <p className="text-xs uppercase tracking-wide text-ink-500">Subtotal</p>
-          <p className="mt-2 text-3xl font-semibold text-ink-900">
-            {formatCurrency(subtotal)}
-          </p>
+          <p className="mt-2 text-3xl font-semibold text-ink-900">{formatCurrency(subtotal)}</p>
           <p className="mt-2 text-sm text-ink-600">
             Revise os itens e conclua seu pedido direto com a equipe EncantArtes.
           </p>
@@ -89,12 +87,7 @@ export function Cart() {
               Finalizar no WhatsApp
             </a>
           </Button>
-          <Button
-            variant="outline"
-            className="mt-3 w-full"
-            onClick={clear}
-            type="button"
-          >
+          <Button variant="outline" className="mt-3 w-full" onClick={clear} type="button">
             Limpar carrinho
           </Button>
         </div>
@@ -102,6 +95,3 @@ export function Cart() {
     </div>
   );
 }
-
-
-

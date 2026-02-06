@@ -115,11 +115,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                   className="pl-9"
                 />
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => setSelected(null)}
-                className="gap-2"
-              >
+              <Button variant="secondary" onClick={() => setSelected(null)} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Novo produto
               </Button>
@@ -242,16 +238,10 @@ function AdminSettings() {
             placeholder="encantartes"
           />
         </div>
-        <Button
-          onClick={() => mutation.mutate()}
-          disabled={mutation.isPending}
-          className="mt-2"
-        >
+        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="mt-2">
           {mutation.isPending ? "Salvando..." : "Salvar"}
         </Button>
       </div>
     </div>
   );
 }
-
-

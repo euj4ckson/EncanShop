@@ -18,6 +18,3 @@ export function removeStorage(key: string): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(key);
 }
-
-
-

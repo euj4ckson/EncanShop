@@ -8,6 +8,3 @@ export function useContacts() {
     staleTime: Infinity
   });
 }
-
-
-

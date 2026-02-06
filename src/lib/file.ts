@@ -6,6 +6,3 @@
     reader.readAsDataURL(file);
   });
 }
-
-
-

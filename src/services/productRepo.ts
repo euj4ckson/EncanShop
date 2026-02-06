@@ -28,6 +28,3 @@ export interface ProductRepo {
   update(id: string, input: ProductInput): Promise<Product>;
   remove(id: string): Promise<void>;
 }
-
-
-

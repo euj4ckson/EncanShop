@@ -8,7 +8,7 @@ export function Footer() {
     contacts?.whatsapp || "553291109045",
     "Olá! Quero falar com a EncantArtes."
   );
-  const instagramLink = `https://instagram.com/${contacts?.instagram || "encantartes"}`;
+  const instagramLink = `https://www.instagram.com/${contacts?.instagram || "_encantartes"}`;
 
   return (
     <footer className="border-t border-sand-200/70 bg-sand-100/70">
@@ -23,9 +23,7 @@ export function Footer() {
           </div>
         </div>
         <div className="space-y-3 text-sm text-ink-700">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-            Atendimento
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Atendimento</p>
           <p>Seg. a Sáb. 09h – 18h</p>
           <p>Entregas para todo o Brasil</p>
         </div>
@@ -56,8 +54,3 @@ export function Footer() {
     </footer>
   );
 }
-
-
-
-
-

@@ -1,8 +1,4 @@
-﻿import {
-  ADMIN_PASSWORD_FALLBACK,
-  ADMIN_SESSION_KEY,
-  ADMIN_SESSION_TTL_MS
-} from "@/lib/config";
+﻿import { ADMIN_PASSWORD_FALLBACK, ADMIN_SESSION_KEY, ADMIN_SESSION_TTL_MS } from "@/lib/config";
 import { readStorage, removeStorage, writeStorage } from "@/lib/storage";
 
 type AdminSession = {
@@ -19,9 +15,10 @@ export function isUsingDefaultPassword(): boolean {
 }
 
 export function createSession(): AdminSession {
-  const token = typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const token =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const session: AdminSession = {
     token,
     expiresAt: Date.now() + ADMIN_SESSION_TTL_MS
@@ -53,6 +50,3 @@ export function loginWithPassword(password: string): boolean {
   createSession();
   return true;
 }
-
-
-

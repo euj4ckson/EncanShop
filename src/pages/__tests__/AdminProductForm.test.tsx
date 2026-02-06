@@ -14,5 +14,3 @@ describe("AdminProductForm", () => {
     expect(screen.getByText("Descreva o produto")).toBeInTheDocument();
   });
 });
-
-

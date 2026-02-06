@@ -13,7 +13,7 @@ export function Header() {
     contacts?.whatsapp || "553291109045",
     "Olá! Quero conhecer os produtos da EncantArtes."
   );
-  const instagramLink = `https://instagram.com/${contacts?.instagram || "encantartes"}`;
+  const instagramLink = `https://www.instagram.com/${contacts?.instagram || "_encantartes"}`;
 
   return (
     <header className="fixed top-0 z-40 w-full border-b border-sand-200/60 bg-sand-50/80 backdrop-blur-xl">
@@ -58,7 +58,10 @@ export function Header() {
             <Instagram className="h-4 w-4" />
             Instagram
           </a>
-          <PrefetchLink to="/carrinho" className="relative rounded-full p-2 transition hover:bg-white/70">
+          <PrefetchLink
+            to="/carrinho"
+            className="relative rounded-full p-2 transition hover:bg-white/70"
+          >
             <ShoppingBag className="h-6 w-6 text-ink-900" />
             <CartBadge count={totalItems} />
           </PrefetchLink>
@@ -67,8 +70,3 @@ export function Header() {
     </header>
   );
 }
-
-
-
-
-

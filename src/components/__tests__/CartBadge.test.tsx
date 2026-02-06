@@ -12,5 +12,3 @@ describe("CartBadge", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
-
-

@@ -56,5 +56,3 @@ export function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
     </div>
   );
 }
-
-

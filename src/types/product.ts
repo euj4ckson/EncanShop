@@ -15,6 +15,3 @@
 export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "slug"> & {
   slug?: string;
 };
-
-
-

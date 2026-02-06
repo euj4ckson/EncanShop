@@ -12,6 +12,3 @@ export function prefetchRoute(path: string) {
     void prefetcher();
   }
 }
-
-
-

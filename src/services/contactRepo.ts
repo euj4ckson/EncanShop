@@ -10,6 +10,3 @@ export const ContactRepo = {
     return data;
   }
 };
-
-
-

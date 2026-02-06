@@ -21,7 +21,3 @@ export function FloatingWhatsApp() {
     </a>
   );
 }
-
-
-
-

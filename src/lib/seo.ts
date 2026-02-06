@@ -18,6 +18,3 @@ export function useSeo({ title, description }: SeoOptions): void {
     meta.setAttribute("content", description);
   }, [title, description]);
 }
-
-
-
