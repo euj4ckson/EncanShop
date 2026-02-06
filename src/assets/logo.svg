@@ -1,0 +1,6 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="110" cy="110" r="108" fill="#F7F2EB" stroke="#9A7B63" stroke-width="4" />
+  <path d="M110 60C100 75 100 90 110 105C120 90 120 75 110 60Z" fill="#F4A145"/>
+  <rect x="90" y="105" width="40" height="55" rx="8" stroke="#9A7B63" stroke-width="4" fill="none"/>
+  <text x="110" y="190" text-anchor="middle" font-family="'Playfair Display', serif" font-size="28" fill="#5F8F7A">EncantArtes</text>
+</svg>

@@ -1,0 +1,127 @@
+﻿[
+  {
+    "id": "1b4a0f6b-0f6a-4f3b-8b10-49b0c2183a01",
+    "name": "Vela Aurora Dourada",
+    "slug": "vela-aurora-dourada",
+    "price": 89.9,
+    "description": "Vela artesanal com notas de baunilha e âmbar, ideal para criar um clima acolhedor.",
+    "category": "Velas",
+    "images": [
+      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1453831362806-3d5577f014a4?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": true,
+    "inStock": true,
+    "createdAt": "2026-01-10T12:00:00.000Z",
+    "updatedAt": "2026-01-10T12:00:00.000Z"
+  },
+  {
+    "id": "4a716f22-6d3c-4b2f-8f07-5b2e4bc1c3b2",
+    "name": "Vela Jardim Encantado",
+    "slug": "vela-jardim-encantado",
+    "price": 74.5,
+    "description": "Blend floral delicado com cera vegetal e pavio de algodão.",
+    "category": "Velas",
+    "images": [
+      "https://images.unsplash.com/photo-1502069162409-3f20d9d9e4a5?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": true,
+    "inStock": true,
+    "createdAt": "2026-01-11T12:00:00.000Z",
+    "updatedAt": "2026-01-11T12:00:00.000Z"
+  },
+  {
+    "id": "3c0cb51b-3a8e-4d7f-80a5-4d4727f08f13",
+    "name": "Kit Ritual da Lua",
+    "slug": "kit-ritual-da-lua",
+    "price": 159.9,
+    "description": "Kit com vela, difusor e sabonete artesanal para momentos de autocuidado.",
+    "category": "Kits",
+    "images": [
+      "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": true,
+    "inStock": true,
+    "createdAt": "2026-01-12T12:00:00.000Z",
+    "updatedAt": "2026-01-12T12:00:00.000Z"
+  },
+  {
+    "id": "d4de8f3a-7f2c-4b58-9c1f-6a6a3a1b9ed4",
+    "name": "Difusor Brisa Terrosa",
+    "slug": "difusor-brisa-terrosa",
+    "price": 64.9,
+    "description": "Difusor de ambientes com notas amadeiradas e toque cítrico.",
+    "category": "Aromas",
+    "images": [
+      "https://images.unsplash.com/photo-1517685352821-92cf88aee5a5?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": false,
+    "inStock": true,
+    "createdAt": "2026-01-13T12:00:00.000Z",
+    "updatedAt": "2026-01-13T12:00:00.000Z"
+  },
+  {
+    "id": "f4ae2a6c-0fa1-4e9b-8a56-987901a89b78",
+    "name": "Sabonete Flor de Laranjeira",
+    "slug": "sabonete-flor-de-laranjeira",
+    "price": 28.9,
+    "description": "Sabonete artesanal com manteiga de karité e fragrância cítrica suave.",
+    "category": "Banho",
+    "images": [
+      "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": false,
+    "inStock": true,
+    "createdAt": "2026-01-14T12:00:00.000Z",
+    "updatedAt": "2026-01-14T12:00:00.000Z"
+  },
+  {
+    "id": "cd1df6e9-8d8f-4f83-87d5-9b4fa7a9b241",
+    "name": "Bandeja Âmbar",
+    "slug": "bandeja-ambar",
+    "price": 98.0,
+    "description": "Peça decorativa em madeira com acabamento fosco e toque natural.",
+    "category": "Decoração",
+    "images": [
+      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": false,
+    "inStock": true,
+    "createdAt": "2026-01-15T12:00:00.000Z",
+    "updatedAt": "2026-01-15T12:00:00.000Z"
+  },
+  {
+    "id": "b22d6a2e-23b6-45b9-91f9-0c0b2b9bb520",
+    "name": "Vela Doce Canela",
+    "slug": "vela-doce-canela",
+    "price": 69.9,
+    "description": "Vela aromática com canela e toque de açúcar mascavo.",
+    "category": "Velas",
+    "images": [
+      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": true,
+    "inStock": true,
+    "createdAt": "2026-01-16T12:00:00.000Z",
+    "updatedAt": "2026-01-16T12:00:00.000Z"
+  },
+  {
+    "id": "f7be7f72-2d86-4c99-ae3f-4c98e42e2a07",
+    "name": "Home Spray Névoa Dourada",
+    "slug": "home-spray-nevoa-dourada",
+    "price": 52.0,
+    "description": "Home spray para renovar o ambiente com elegância e leveza.",
+    "category": "Aromas",
+    "images": [
+      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=900&q=80"
+    ],
+    "featured": false,
+    "inStock": true,
+    "createdAt": "2026-01-17T12:00:00.000Z",
+    "updatedAt": "2026-01-17T12:00:00.000Z"
+  }
+]
+
+
+
