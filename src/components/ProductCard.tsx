@@ -10,7 +10,8 @@ import type { Product } from "@/types/product";
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
   const { toast } = useToast();
-  const hasVariants = (product.variants?.length ?? 0) > 0;
+  const variants = (product.variants ?? []).map((item) => item.trim()).filter(Boolean);
+  const hasVariants = variants.length > 0;
 
   const handleAdd = () => {
     addItem({
@@ -51,6 +52,23 @@ export function ProductCard({ product }: { product: Product }) {
           <p className="text-xs uppercase tracking-[0.2em] text-ink-500">{product.category}</p>
           <h3 className="mt-2 font-serif text-xl text-ink-900">{product.name}</h3>
           <p className="mt-2 text-sm text-ink-600">{clampText(product.description, 90)}</p>
+          {hasVariants ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {variants.slice(0, 3).map((variant) => (
+                <span
+                  key={variant}
+                  className="rounded-full border border-sand-200/70 bg-sand-50 px-2 py-1 text-[11px] font-medium text-ink-600"
+                >
+                  {variant}
+                </span>
+              ))}
+              {variants.length > 3 ? (
+                <span className="rounded-full border border-sand-200/70 bg-white px-2 py-1 text-[11px] font-medium text-ink-500">
+                  +{variants.length - 3}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="mt-5 flex items-center justify-between">
           <span className="text-lg font-semibold text-ink-900">

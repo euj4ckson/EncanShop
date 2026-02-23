@@ -4,7 +4,6 @@ import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
-import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/components/ui/Toast";
@@ -189,21 +188,29 @@ export function ProductDetail() {
           </div>
           {requiresVariant ? (
             <div className="space-y-2">
-              <Label htmlFor="product-variant">Cor / variação</Label>
-              <Select
-                id="product-variant"
-                value={selectedVariant}
-                onChange={(event) => setSelectedVariant(event.target.value)}
-              >
-                <option value="">Selecione uma opção</option>
-                {availableVariants.map((variant) => (
-                  <option key={variant} value={variant}>
-                    {variant}
-                  </option>
-                ))}
-              </Select>
+              <Label>Cor / variação (obrigatório)</Label>
+              <div className="flex flex-wrap gap-2">
+                {availableVariants.map((variant) => {
+                  const isSelected = selectedVariant === variant;
+                  return (
+                    <button
+                      key={variant}
+                      type="button"
+                      onClick={() => setSelectedVariant(variant)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                        isSelected
+                          ? "border-gold-500 bg-gold-100 text-ink-900 ring-2 ring-gold-200"
+                          : "border-sand-200/70 bg-white/80 text-ink-700 hover:border-sand-300"
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      {variant}
+                    </button>
+                  );
+                })}
+              </div>
               <p className="text-xs text-ink-500">
-                Escolha a cor/variação para adicionar ao carrinho.
+                Escolha uma opção para liberar os botões de compra.
               </p>
             </div>
           ) : null}
