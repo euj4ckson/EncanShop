@@ -1,6 +1,6 @@
 import { put, del } from "@vercel/blob";
 import { Redis } from "@upstash/redis";
-import seedProducts from "../src/data/seedProducts.json";
+import { readFileSync } from "node:fs";
 import type { Product, ProductInput } from "../src/types/product";
 
 type ProductSort = "featured" | "newest" | "price-asc" | "price-desc";
@@ -21,14 +21,36 @@ type ProductListResult = {
   pageSize: number;
 };
 
+const seedProducts = JSON.parse(
+  readFileSync(new URL("../src/data/seedProducts.json", import.meta.url), "utf8")
+) as Product[];
+
 const PRODUCTS_KEY = "encantartes_products";
 const DEFAULT_PAGE_SIZE = 8;
 
 let redisClient: Redis | null = null;
 
+function getRedisEnv():
+  | {
+      url: string;
+      token: string;
+    }
+  | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
 function getRedis(): Redis {
   if (redisClient) return redisClient;
-  redisClient = Redis.fromEnv();
+  const env = getRedisEnv();
+  if (!env) {
+    throw new Error(
+      "Configuracao ausente: defina UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN na Vercel."
+    );
+  }
+  redisClient = new Redis(env);
   return redisClient;
 }
 
