@@ -1,23 +1,36 @@
-﻿import seedProducts from "@/data/seedProducts.json";
-import { PAGE_SIZE } from "@/lib/config";
+import seedProducts from "@/data/seedProducts.json";
+import { PAGE_SIZE, PRODUCTS_STORAGE_KEY } from "@/lib/config";
+import { readStorage, writeStorage } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 import type { Product, ProductInput } from "@/types/product";
 import type { ProductListParams, ProductListResult, ProductRepo } from "@/services/productRepo";
 
 let runtimeProducts: Product[] | null = null;
 
+function cloneProduct(product: Product): Product {
+  return {
+    ...product,
+    images: [...product.images]
+  };
+}
+
+function cloneProducts(products: Product[]): Product[] {
+  return products.map(cloneProduct);
+}
+
 function ensureSeed(): Product[] {
   if (!runtimeProducts) {
-    runtimeProducts = (seedProducts as Product[]).map((product) => ({
-      ...product,
-      images: [...product.images]
-    }));
+    const persisted = readStorage<Product[] | null>(PRODUCTS_STORAGE_KEY, null);
+    const source =
+      persisted && Array.isArray(persisted) ? persisted : (seedProducts as Product[]);
+    runtimeProducts = cloneProducts(source);
   }
   return runtimeProducts;
 }
 
 function saveProducts(products: Product[]): void {
-  runtimeProducts = products;
+  runtimeProducts = cloneProducts(products);
+  writeStorage(PRODUCTS_STORAGE_KEY, runtimeProducts);
 }
 
 function applySearch(products: Product[], search?: string): Product[] {
@@ -78,13 +91,13 @@ export const ProductRepoLocal: ProductRepo = {
 
     const total = products.length;
     const start = page * pageSize;
-    const items = products.slice(start, start + pageSize);
+    const items = products.slice(start, start + pageSize).map(cloneProduct);
 
     return { items, total, page, pageSize };
   },
 
   async listAll(): Promise<Product[]> {
-    return ensureSeed();
+    return cloneProducts(ensureSeed());
   },
 
   async listCategories(): Promise<string[]> {
@@ -94,12 +107,14 @@ export const ProductRepoLocal: ProductRepo = {
 
   async getById(id: string): Promise<Product | null> {
     const products = ensureSeed();
-    return products.find((product) => product.id === id) ?? null;
+    const found = products.find((product) => product.id === id);
+    return found ? cloneProduct(found) : null;
   },
 
   async getBySlug(slug: string): Promise<Product | null> {
     const products = ensureSeed();
-    return products.find((product) => product.slug === slug) ?? null;
+    const found = products.find((product) => product.slug === slug);
+    return found ? cloneProduct(found) : null;
   },
 
   async create(input: ProductInput): Promise<Product> {
@@ -117,7 +132,7 @@ export const ProductRepoLocal: ProductRepo = {
     };
     const updated = [newProduct, ...products];
     saveProducts(updated);
-    return newProduct;
+    return cloneProduct(newProduct);
   },
 
   async update(id: string, input: ProductInput): Promise<Product> {
@@ -135,7 +150,7 @@ export const ProductRepoLocal: ProductRepo = {
     saveProducts(updated);
     const found = updated.find((product) => product.id === id);
     if (!found) throw new Error("Produto não encontrado.");
-    return found;
+    return cloneProduct(found);
   },
 
   async remove(id: string): Promise<void> {
