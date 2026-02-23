@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
+import { Label } from "@/components/ui/Label";
+import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCart } from "@/store/cart";
 import { useToast } from "@/components/ui/Toast";
@@ -20,6 +22,7 @@ export function ProductDetail() {
   const { data: contacts } = useContacts();
   const [activeImage, setActiveImage] = React.useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
+  const [selectedVariant, setSelectedVariant] = React.useState("");
 
   React.useEffect(() => {
     if (!isPreviewOpen) return;
@@ -45,6 +48,19 @@ export function ProductDetail() {
   });
 
   const product = productQuery.data;
+  const availableVariants = React.useMemo(
+    () =>
+      Array.from(
+        new Set((product?.variants ?? []).map((item) => item.trim()).filter(Boolean))
+      ),
+    [product?.variants]
+  );
+  const requiresVariant = availableVariants.length > 0;
+  const canAddToCart = product ? (!requiresVariant || Boolean(selectedVariant)) : false;
+
+  React.useEffect(() => {
+    setSelectedVariant("");
+  }, [product?.id]);
 
   useSeo({
     title: product?.name ?? "Produto",
@@ -53,16 +69,25 @@ export function ProductDetail() {
 
   const handleAdd = () => {
     if (!product) return;
+    if (requiresVariant && !selectedVariant) {
+      toast({
+        title: "Selecione uma variação",
+        description: "Escolha a cor/variação antes de adicionar ao carrinho.",
+        variant: "error"
+      });
+      return;
+    }
     addItem({
       productId: product.id,
       name: product.name,
       price: product.price,
       image: product.images[0],
+      variant: selectedVariant || undefined,
       quantity: 1
     });
     toast({
       title: "Adicionado ao carrinho",
-      description: product.name,
+      description: selectedVariant ? `${product.name} (${selectedVariant})` : product.name,
       variant: "success"
     });
   };
@@ -94,7 +119,7 @@ export function ProductDetail() {
 
   const whatsappLink = buildWhatsAppLink(
     contacts?.whatsapp || "553291109045",
-    buildProductMessage(product)
+    buildProductMessage(product, { variant: selectedVariant || undefined })
   );
 
   return (
@@ -162,16 +187,42 @@ export function ProductDetail() {
               </span>
             </div>
           </div>
+          {requiresVariant ? (
+            <div className="space-y-2">
+              <Label htmlFor="product-variant">Cor / variação</Label>
+              <Select
+                id="product-variant"
+                value={selectedVariant}
+                onChange={(event) => setSelectedVariant(event.target.value)}
+              >
+                <option value="">Selecione uma opção</option>
+                {availableVariants.map((variant) => (
+                  <option key={variant} value={variant}>
+                    {variant}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-ink-500">
+                Escolha a cor/variação para adicionar ao carrinho.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-3">
-            <Button onClick={handleAdd} disabled={!product.inStock}>
+            <Button onClick={handleAdd} disabled={!product.inStock || !canAddToCart}>
               <ShoppingBag className="h-4 w-4" />
               Adicionar ao carrinho
             </Button>
-            <Button asChild variant="outline">
-              <a href={whatsappLink} target="_blank" rel="noreferrer">
+            {canAddToCart ? (
+              <Button asChild variant="outline">
+                <a href={whatsappLink} target="_blank" rel="noreferrer">
+                  Comprar no WhatsApp
+                </a>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
                 Comprar no WhatsApp
-              </a>
-            </Button>
+              </Button>
+            )}
           </div>
         </div>
       </div>

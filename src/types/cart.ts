@@ -3,6 +3,7 @@
   name: string;
   price: number;
   image?: string;
+  variant?: string;
   quantity: number;
 };
 

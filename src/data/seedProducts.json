@@ -11,6 +11,11 @@
       "/products/vela-mae/vela-mae-detalhe-direita.png",
       "/products/vela-mae/vela-mae-detalhe-esquerda.png"
     ],
+    "variants": [
+      "Vermelha",
+      "Rosa",
+      "Branca"
+    ],
     "featured": true,
     "inStock": true,
     "createdAt": "2026-02-23T12:00:00.000Z",

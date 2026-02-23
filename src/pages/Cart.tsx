@@ -14,7 +14,7 @@ export function Cart() {
     description: "Finalize seu pedido com rapidez e carinho pela EncantArtes."
   });
 
-  const { items, subtotal, updateQuantity, removeItem, clear } = useCart();
+  const { items, subtotal, updateQuantity, removeItem, getItemKey, clear } = useCart();
   const { data: contacts } = useContacts();
 
   const whatsappLink = buildWhatsAppLink(
@@ -51,38 +51,46 @@ export function Cart() {
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
-          {items.map((item) => (
-            <div
-              key={item.productId}
-              className="glass-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
-            >
-              {item.image ? (
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="h-24 w-24 rounded-2xl object-cover"
-                  loading="lazy"
-                />
-              ) : null}
-              <div className="flex-1">
-                <p className="font-semibold text-ink-900">{item.name}</p>
-                <p className="text-sm text-ink-600">{formatCurrency(item.price)}</p>
+          {items.map((item) => {
+            const itemKey = getItemKey(item);
+            return (
+              <div
+                key={itemKey}
+                className="glass-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+              >
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-24 w-24 rounded-2xl object-cover"
+                    loading="lazy"
+                  />
+                ) : null}
+                <div className="flex-1">
+                  <p className="font-semibold text-ink-900">{item.name}</p>
+                  {item.variant ? (
+                    <p className="text-xs font-medium uppercase tracking-wide text-ink-500">
+                      Cor/Variação: {item.variant}
+                    </p>
+                  ) : null}
+                  <p className="text-sm text-ink-600">{formatCurrency(item.price)}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <QuantityControl
+                    value={item.quantity}
+                    onChange={(value) => updateQuantity(itemKey, value)}
+                  />
+                  <Button
+                    variant="ghost"
+                    onClick={() => removeItem(itemKey)}
+                    aria-label="Remover item"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <QuantityControl
-                  value={item.quantity}
-                  onChange={(value) => updateQuantity(item.productId, value)}
-                />
-                <Button
-                  variant="ghost"
-                  onClick={() => removeItem(item.productId)}
-                  aria-label="Remover item"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="glass-panel h-fit p-6">
           <p className="text-xs uppercase tracking-wide text-ink-500">Subtotal</p>

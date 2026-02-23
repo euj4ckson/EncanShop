@@ -6,6 +6,7 @@
   description: string;
   category: string;
   images: string[];
+  variants?: string[];
   featured: boolean;
   inStock: boolean;
   createdAt: string;

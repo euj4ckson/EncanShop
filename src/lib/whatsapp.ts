@@ -7,14 +7,29 @@ export function buildWhatsAppLink(phoneDigits: string, message: string): string 
   return `https://wa.me/${phoneDigits}?text=${encoded}`;
 }
 
-export function buildProductMessage(product: Product): string {
-  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(product.price)}.`;
+export function buildProductMessage(
+  product: Product,
+  options?: { variant?: string }
+): string {
+  const variantLine = options?.variant ? `\nCor/Variação: ${options.variant}` : "";
+  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(product.price)}.${variantLine}`;
 }
 
 export function buildCartMessage(items: CartItem[], total: number): string {
-  const lines = items.map(
-    (item) =>
-      `- ${item.name} (Qtd ${item.quantity}) - ${formatCurrency(item.price * item.quantity)}`
-  );
-  return `Olá! Quero comprar na EncantArtes:\n${lines.join("\n")}\nTotal: ${formatCurrency(total)}`;
+  const lines = items.map((item, index) => {
+    const subtotal = formatCurrency(item.price * item.quantity);
+    const variantLine = item.variant ? `\n   Cor/Variação: ${item.variant}` : "";
+    return `${index + 1}. *${item.name}*${variantLine}\n   Quantidade: ${item.quantity}\n   Subtotal: ${subtotal}`;
+  });
+
+  return [
+    "Olá! Quero finalizar minha compra na EncantArtes.",
+    "",
+    "*Resumo do pedido*",
+    ...lines,
+    "",
+    `*Total:* ${formatCurrency(total)}`,
+    "",
+    "Pode me confirmar disponibilidade e prazo de entrega?"
+  ].join("\n");
 }

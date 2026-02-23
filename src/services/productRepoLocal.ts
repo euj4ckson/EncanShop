@@ -10,7 +10,8 @@ let runtimeProducts: Product[] | null = null;
 function cloneProduct(product: Product): Product {
   return {
     ...product,
-    images: [...product.images]
+    images: [...product.images],
+    variants: product.variants ? [...product.variants] : undefined
   };
 }
 

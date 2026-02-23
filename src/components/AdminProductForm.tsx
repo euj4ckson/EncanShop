@@ -43,6 +43,10 @@ const productSchema = z.object({
   description: z.string().min(10, "Descreva o produto"),
   category: z.string().min(2, "Informe a categoria"),
   images: z.array(imageSchema).min(1, "Inclua ao menos 1 imagem").max(3),
+  variants: z
+    .array(z.string().trim().min(1, "Informe a variação").max(40, "Máximo de 40 caracteres"))
+    .max(12, "Máximo de 12 variações")
+    .default([]),
   featured: z.boolean().default(false),
   inStock: z.boolean().default(true)
 });
@@ -66,17 +70,26 @@ export function AdminProductForm({
       description: "",
       category: "",
       images: [],
+      variants: [],
       featured: false,
       inStock: true
     }
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields: imageFields, append, remove } = useFieldArray({
     control: form.control,
     name: "images"
   });
+  const {
+    fields: variantFields,
+    append: appendVariant,
+    remove: removeVariant
+  } = useFieldArray({
+    control: form.control,
+    name: "variants"
+  });
 
-  const maxReached = fields.length >= 3;
+  const maxReached = imageFields.length >= 3;
 
   useEffect(() => {
     if (initialValues) {
@@ -121,7 +134,7 @@ export function AdminProductForm({
 
       <div className="space-y-2">
         <Label>Imagens (até 3)</Label>
-        {fields.map((field, index) => (
+        {imageFields.map((field, index) => (
           <div key={field.id} className="flex items-center gap-2">
             <Input {...form.register(`images.${index}` as const)} />
             <Button
@@ -156,6 +169,41 @@ export function AdminProductForm({
             />
           </label>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Variações / Cores (opcional)</Label>
+        {variantFields.map((field, index) => (
+          <div key={field.id} className="flex items-center gap-2">
+            <Input
+              placeholder="Ex.: Vermelha"
+              {...form.register(`variants.${index}` as const)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => removeVariant(index)}
+              aria-label="Remover variação"
+            >
+              Remover
+            </Button>
+          </div>
+        ))}
+        {Array.isArray(form.formState.errors.variants)
+          ? form.formState.errors.variants.map((error, index) =>
+              error?.message ? (
+                <p key={index} className="text-xs text-red-500">
+                  {error.message}
+                </p>
+              ) : null
+            )
+          : null}
+        {form.formState.errors.variants?.message ? (
+          <p className="text-xs text-red-500">{form.formState.errors.variants.message}</p>
+        ) : null}
+        <Button type="button" variant="outline" onClick={() => appendVariant("")}>
+          Adicionar variação
+        </Button>
       </div>
 
       <div className="flex items-center gap-4">
