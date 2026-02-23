@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { clearSession } from "@/lib/auth";
 import { formatPhoneBR, slugify } from "@/lib/utils";
 import type { Product } from "@/types/product";
-import { ProductRepoLocal } from "@/services/productRepoLocal";
+import { PRODUCTS_BACKEND_MODE, ProductsRepo } from "@/services/productsRepo";
 import { ContactRepo } from "@/services/contactRepo";
 import { useContacts } from "@/services/useContacts";
 import { normalizeInstagram, normalizeWhatsapp } from "@/lib/contacts";
@@ -21,14 +21,22 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const showErrorToast = (title: string, error: unknown) => {
+    toast({
+      title,
+      description: error instanceof Error ? error.message : "Tente novamente.",
+      variant: "error"
+    });
+  };
+
   const productsQuery = useQuery({
     queryKey: ["admin-products"],
-    queryFn: () => ProductRepoLocal.listAll()
+    queryFn: () => ProductsRepo.listAll()
   });
 
   const createMutation = useMutation({
     mutationFn: (values: AdminProductFormValues) =>
-      ProductRepoLocal.create({
+      ProductsRepo.create({
         ...values,
         slug: slugify(values.name)
       }),
@@ -37,28 +45,31 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
       toast({ title: "Produto criado", variant: "success" });
-    }
+    },
+    onError: (error) => showErrorToast("Falha ao criar produto", error)
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, values }: { id: string; values: AdminProductFormValues }) =>
-      ProductRepoLocal.update(id, values),
+      ProductsRepo.update(id, values),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
       toast({ title: "Produto atualizado", variant: "success" });
-    }
+    },
+    onError: (error) => showErrorToast("Falha ao atualizar produto", error)
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => ProductRepoLocal.remove(id),
+    mutationFn: (id: string) => ProductsRepo.remove(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
       toast({ title: "Produto removido" });
-    }
+    },
+    onError: (error) => showErrorToast("Falha ao remover produto", error)
   });
 
   const filteredProducts = (productsQuery.data ?? []).filter((product) =>
@@ -77,6 +88,9 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-ink-500">EncantArtes</p>
             <h1 className="font-serif text-2xl text-ink-900">Painel Admin</h1>
+            <p className="text-xs text-ink-500">
+              Produtos: {PRODUCTS_BACKEND_MODE === "api" ? "Vercel (compartilhado)" : "Local"}
+            </p>
           </div>
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />

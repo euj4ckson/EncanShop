@@ -11,9 +11,13 @@ import { fileToBase64 } from "@/lib/file";
 const imageSchema = z
   .string()
   .min(5)
-  .refine((value) => value.startsWith("http") || value.startsWith("data:image"), {
-    message: "Use uma URL válida ou imagem enviada"
-  });
+  .refine(
+    (value) =>
+      value.startsWith("http") || value.startsWith("data:image") || value.startsWith("/"),
+    {
+      message: "Use uma URL válida, caminho local (/...) ou imagem enviada"
+    }
+  );
 
 const productSchema = z.object({
   name: z.string().min(2, "Informe o nome"),

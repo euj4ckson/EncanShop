@@ -10,7 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import { buildProductMessage, buildWhatsAppLink } from "@/lib/whatsapp";
 import { useContacts } from "@/services/useContacts";
 import { useSeo } from "@/lib/seo";
-import { ProductRepoLocal } from "@/services/productRepoLocal";
+import { ProductsRepo } from "@/services/productsRepo";
 import { PrefetchLink } from "@/routes/PrefetchLink";
 
 export function ProductDetail() {
@@ -19,14 +19,28 @@ export function ProductDetail() {
   const { toast } = useToast();
   const { data: contacts } = useContacts();
   const [activeImage, setActiveImage] = React.useState(0);
+  const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isPreviewOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPreviewOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPreviewOpen]);
 
   const productQuery = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
       if (!id) return null;
-      const byId = await ProductRepoLocal.getById(id);
+      const byId = await ProductsRepo.getById(id);
       if (byId) return byId;
-      return ProductRepoLocal.getBySlug(id);
+      return ProductsRepo.getBySlug(id);
     }
   });
 
@@ -94,28 +108,42 @@ export function ProductDetail() {
       </PrefetchLink>
       <div className="mt-8 grid gap-10 lg:grid-cols-2">
         <div>
-          <div className="glass-panel overflow-hidden p-0">
+          <button
+            type="button"
+            onClick={() => setIsPreviewOpen(true)}
+            className="glass-panel group relative block w-full cursor-zoom-in overflow-hidden p-0 text-left"
+            aria-label="Abrir imagem ampliada"
+          >
             <img
               src={product.images[activeImage]}
               alt={product.name}
-              className="h-[420px] w-full object-cover"
+              className="h-[520px] w-full bg-white/40 object-contain md:h-[560px]"
               loading="eager"
               decoding="async"
             />
-          </div>
-          <div className="mt-4 flex gap-3">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-900/15 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+            <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/50 bg-white/85 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-ink-700 opacity-0 shadow-soft transition group-hover:opacity-100">
+              Ampliar
+            </span>
+          </button>
+          <div className="mt-4 flex flex-wrap gap-3">
             {product.images.map((image, index) => (
               <button
                 key={image}
                 onClick={() => setActiveImage(index)}
-                className={`h-20 w-20 overflow-hidden rounded-2xl border transition ${
+                className={`h-24 w-24 overflow-hidden rounded-2xl border transition sm:h-28 sm:w-28 ${
                   index === activeImage
                     ? "border-gold-500 ring-2 ring-gold-300"
                     : "border-sand-200/70 hover:border-sand-300"
                 }`}
                 aria-label={`Imagem ${index + 1}`}
               >
-                <img src={image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img
+                  src={image}
+                  alt=""
+                  className="h-full w-full bg-white/40 object-contain p-1"
+                  loading="lazy"
+                />
               </button>
             ))}
           </div>
@@ -147,6 +175,31 @@ export function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {isPreviewOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/85 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Visualização ampliada de ${product.name}`}
+          onClick={() => setIsPreviewOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setIsPreviewOpen(false)}
+            className="absolute right-4 top-4 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white/20"
+            aria-label="Fechar visualização"
+          >
+            Fechar
+          </button>
+          <img
+            src={product.images[activeImage]}
+            alt={product.name}
+            className="max-h-[90vh] max-w-[94vw] rounded-2xl bg-white/10 object-contain p-2 shadow-glow"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

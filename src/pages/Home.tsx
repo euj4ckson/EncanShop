@@ -12,7 +12,7 @@ import { useContacts } from "@/services/useContacts";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { useSeo } from "@/lib/seo";
 import { PAGE_SIZE } from "@/lib/config";
-import { ProductRepoLocal } from "@/services/productRepoLocal";
+import { ProductsRepo } from "@/services/productsRepo";
 import { formatCurrency } from "@/lib/utils";
 import type { ProductSort } from "@/services/productRepo";
 import logo from "@/assets/logo.svg";
@@ -37,18 +37,18 @@ export function Home() {
 
   const featuredQuery = useQuery({
     queryKey: ["featured"],
-    queryFn: () => ProductRepoLocal.list({ featured: true, pageSize: 4 })
+    queryFn: () => ProductsRepo.list({ featured: true, pageSize: 4 })
   });
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
-    queryFn: () => ProductRepoLocal.listCategories()
+    queryFn: () => ProductsRepo.listCategories()
   });
 
   const productsQuery = useInfiniteQuery({
     queryKey: ["products", { search, category, sort }],
     queryFn: ({ pageParam = 0 }) =>
-      ProductRepoLocal.list({
+      ProductsRepo.list({
         search,
         category,
         sort,
@@ -83,7 +83,11 @@ export function Home() {
   );
 
   const heroImages = useMemo(
-    () => featuredQuery.data?.items.map((item) => item.images[0]).slice(0, 3) ?? [],
+    () =>
+      featuredQuery.data?.items
+        .flatMap((item) => item.images)
+        .filter(Boolean)
+        .slice(0, 3) ?? [],
     [featuredQuery.data]
   );
 
