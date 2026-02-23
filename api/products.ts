@@ -132,9 +132,14 @@ function applySort(products: Product[], sort?: ProductSort): Product[] {
 
 async function readProducts(): Promise<Product[]> {
   const redis = getRedis();
-  const raw = await redis.get<string>(PRODUCTS_KEY);
+  const raw = await redis.get<string | Product[]>(PRODUCTS_KEY);
   if (!raw) {
     return cloneProducts(seedProducts as Product[]);
+  }
+
+  // Upstash SDK may auto-deserialize JSON strings and return arrays directly.
+  if (Array.isArray(raw)) {
+    return cloneProducts(raw as Product[]);
   }
 
   if (typeof raw !== "string") {

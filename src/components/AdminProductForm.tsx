@@ -8,6 +8,22 @@ import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { fileToBase64 } from "@/lib/file";
 
+function parsePriceInput(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return Number.NaN;
+
+  let normalized = value.trim();
+  if (!normalized) return Number.NaN;
+
+  // Accept pt-BR decimals like "49,90" and thousand separators like "1.234,56"
+  if (normalized.includes(",")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  }
+
+  normalized = normalized.replace(/[^\d.-]/g, "");
+  return Number(normalized);
+}
+
 const imageSchema = z
   .string()
   .min(5)
@@ -21,7 +37,9 @@ const imageSchema = z
 
 const productSchema = z.object({
   name: z.string().min(2, "Informe o nome"),
-  price: z.number().min(1, "Informe o preço"),
+  price: z
+    .number({ invalid_type_error: "Informe um preço válido" })
+    .min(1, "Informe o preço"),
   description: z.string().min(10, "Descreva o produto"),
   category: z.string().min(2, "Informe a categoria"),
   images: z.array(imageSchema).min(1, "Inclua ao menos 1 imagem").max(3),
@@ -83,9 +101,10 @@ export function AdminProductForm({
         <Label htmlFor="price">Preço</Label>
         <Input
           id="price"
-          type="number"
-          step="0.01"
-          {...form.register("price", { valueAsNumber: true })}
+          type="text"
+          inputMode="decimal"
+          placeholder="49,90"
+          {...form.register("price", { setValueAs: parsePriceInput })}
         />
         <p className="text-xs text-red-500">{form.formState.errors.price?.message}</p>
       </div>
