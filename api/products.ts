@@ -83,8 +83,24 @@ function parseNumber(value: string | undefined, fallback: number): number {
 function cloneProduct(product: Product): Product {
   return {
     ...product,
-    images: [...product.images]
+    images: [...product.images],
+    variants: product.variants ? [...product.variants] : undefined
   };
+}
+
+function normalizeVariants(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const next = Array.from(
+    new Set(
+      value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+
+  return next.length ? next : undefined;
 }
 
 function cloneProducts(products: Product[]): Product[] {
@@ -261,6 +277,21 @@ function validateProductInput(value: unknown): asserts value is ProductInput {
   if (!input.images.every((item) => typeof item === "string" && item.length >= 5)) {
     throw new Error("Lista de imagens inválida.");
   }
+  if (input.variants !== undefined) {
+    if (!Array.isArray(input.variants)) {
+      throw new Error("Campo 'variants' inválido.");
+    }
+    if (input.variants.length > 12) {
+      throw new Error("Inclua no máximo 12 variações.");
+    }
+    if (
+      !input.variants.every(
+        (item) => typeof item === "string" && item.trim().length >= 1 && item.trim().length <= 40
+      )
+    ) {
+      throw new Error("Lista de variações inválida.");
+    }
+  }
   if (typeof input.featured !== "boolean") {
     throw new Error("Campo 'featured' inválido.");
   }
@@ -381,10 +412,12 @@ export default async function handler(req: any, res: any) {
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const images = await resolveImageUrls(id, input.images);
+      const variants = normalizeVariants(input.variants);
       const product: Product = {
         ...input,
         id,
         images,
+        variants,
         slug: input.slug?.trim() || slugify(input.name),
         createdAt: now,
         updatedAt: now
@@ -411,11 +444,13 @@ export default async function handler(req: any, res: any) {
       }
 
       const images = await resolveImageUrls(id, input.images);
+      const variants = normalizeVariants(input.variants);
       const now = new Date().toISOString();
       const updatedProduct: Product = {
         ...existing,
         ...input,
         images,
+        variants,
         slug: input.slug?.trim() || slugify(input.name),
         updatedAt: now
       };

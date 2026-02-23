@@ -181,6 +181,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                         description: selected.description,
                         category: selected.category,
                         images: selected.images,
+                        variants: selected.variants ?? [],
                         featured: selected.featured,
                         inStock: selected.inStock
                       }

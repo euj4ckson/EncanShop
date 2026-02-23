@@ -10,6 +10,7 @@ import type { Product } from "@/types/product";
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
   const { toast } = useToast();
+  const hasVariants = (product.variants?.length ?? 0) > 0;
 
   const handleAdd = () => {
     addItem({
@@ -55,10 +56,19 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="text-lg font-semibold text-ink-900">
             {formatCurrency(product.price)}
           </span>
-          <Button size="sm" onClick={handleAdd} disabled={!product.inStock}>
-            <ShoppingBag className="h-4 w-4" />
-            {product.inStock ? "Adicionar" : "Indisponível"}
-          </Button>
+          {hasVariants ? (
+            <Button asChild size="sm" variant="outline" disabled={!product.inStock}>
+              <PrefetchLink to={`/produto/${product.id}`}>
+                <ShoppingBag className="h-4 w-4" />
+                {product.inStock ? "Escolher cor" : "Indisponível"}
+              </PrefetchLink>
+            </Button>
+          ) : (
+            <Button size="sm" onClick={handleAdd} disabled={!product.inStock}>
+              <ShoppingBag className="h-4 w-4" />
+              {product.inStock ? "Adicionar" : "Indisponível"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

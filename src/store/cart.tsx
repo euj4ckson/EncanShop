@@ -7,18 +7,23 @@ const emptyState: CartState = { items: [] };
 
 type CartAction =
   | { type: "ADD"; item: CartItem }
-  | { type: "REMOVE"; productId: string }
-  | { type: "UPDATE"; productId: string; quantity: number }
+  | { type: "REMOVE"; itemKey: string }
+  | { type: "UPDATE"; itemKey: string; quantity: number }
   | { type: "CLEAR" };
+
+function getItemKey(item: Pick<CartItem, "productId" | "variant">): string {
+  return `${item.productId}::${item.variant?.trim() || ""}`;
+}
 
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case "ADD": {
-      const existing = state.items.find((item) => item.productId === action.item.productId);
+      const actionKey = getItemKey(action.item);
+      const existing = state.items.find((item) => getItemKey(item) === actionKey);
       if (existing) {
         return {
           items: state.items.map((item) =>
-            item.productId === action.item.productId
+            getItemKey(item) === actionKey
               ? { ...item, quantity: item.quantity + action.item.quantity }
               : item
           )
@@ -27,11 +32,11 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return { items: [action.item, ...state.items] };
     }
     case "REMOVE":
-      return { items: state.items.filter((item) => item.productId !== action.productId) };
+      return { items: state.items.filter((item) => getItemKey(item) !== action.itemKey) };
     case "UPDATE":
       return {
         items: state.items.map((item) =>
-          item.productId === action.productId
+          getItemKey(item) === action.itemKey
             ? { ...item, quantity: Math.max(1, action.quantity) }
             : item
         )
@@ -52,8 +57,9 @@ type CartContextValue = {
   totalItems: number;
   subtotal: number;
   addItem: (item: CartItem) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  removeItem: (itemKey: string) => void;
+  updateQuantity: (itemKey: string, quantity: number) => void;
+  getItemKey: (item: Pick<CartItem, "productId" | "variant">) => string;
   clear: () => void;
 };
 
@@ -74,9 +80,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       totalItems,
       subtotal,
       addItem: (item: CartItem) => dispatch({ type: "ADD", item }),
-      removeItem: (productId: string) => dispatch({ type: "REMOVE", productId }),
-      updateQuantity: (productId: string, quantity: number) =>
-        dispatch({ type: "UPDATE", productId, quantity }),
+      removeItem: (itemKey: string) => dispatch({ type: "REMOVE", itemKey }),
+      updateQuantity: (itemKey: string, quantity: number) =>
+        dispatch({ type: "UPDATE", itemKey, quantity }),
+      getItemKey,
       clear: () => dispatch({ type: "CLEAR" })
     };
   }, [state]);
