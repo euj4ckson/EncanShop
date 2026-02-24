@@ -12,6 +12,7 @@ type ProductListParams = {
   page?: number;
   pageSize?: number;
   featured?: boolean;
+  weeklyCurated?: boolean;
 };
 
 type ProductListResult = {
@@ -295,6 +296,9 @@ function validateProductInput(value: unknown): asserts value is ProductInput {
   if (typeof input.featured !== "boolean") {
     throw new Error("Campo 'featured' inválido.");
   }
+  if (input.weeklyCurated !== undefined && typeof input.weeklyCurated !== "boolean") {
+    throw new Error("Campo 'weeklyCurated' inválido.");
+  }
   if (typeof input.inStock !== "boolean") {
     throw new Error("Campo 'inStock' inválido.");
   }
@@ -337,6 +341,7 @@ function buildList(products: Product[], params: ProductListParams = {}): Product
     search,
     category,
     featured,
+    weeklyCurated,
     sort = "featured",
     page = 0,
     pageSize = DEFAULT_PAGE_SIZE
@@ -346,6 +351,10 @@ function buildList(products: Product[], params: ProductListParams = {}): Product
 
   if (featured) {
     filtered = filtered.filter((product) => product.featured);
+  }
+
+  if (weeklyCurated !== undefined) {
+    filtered = filtered.filter((product) => Boolean(product.weeklyCurated) === weeklyCurated);
   }
 
   if (category && category !== "all") {
@@ -393,6 +402,7 @@ export default async function handler(req: any, res: any) {
         category: getQueryParam(req.query?.category),
         sort: (getQueryParam(req.query?.sort) as ProductSort | undefined) ?? "featured",
         featured: parseBoolean(getQueryParam(req.query?.featured)),
+        weeklyCurated: parseBoolean(getQueryParam(req.query?.weeklyCurated)),
         page: parseNumber(getQueryParam(req.query?.page), 0),
         pageSize: parseNumber(getQueryParam(req.query?.pageSize), DEFAULT_PAGE_SIZE)
       });

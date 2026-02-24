@@ -44,6 +44,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       await queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
+      await queryClient.invalidateQueries({ queryKey: ["weekly-curation"] });
       toast({ title: "Produto criado", variant: "success" });
     },
     onError: (error) => showErrorToast("Falha ao criar produto", error)
@@ -56,6 +57,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       await queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
+      await queryClient.invalidateQueries({ queryKey: ["weekly-curation"] });
       toast({ title: "Produto atualizado", variant: "success" });
     },
     onError: (error) => showErrorToast("Falha ao atualizar produto", error)
@@ -67,6 +69,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       await queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       await queryClient.invalidateQueries({ queryKey: ["products"] });
       await queryClient.invalidateQueries({ queryKey: ["featured"] });
+      await queryClient.invalidateQueries({ queryKey: ["weekly-curation"] });
       toast({ title: "Produto removido" });
     },
     onError: (error) => showErrorToast("Falha ao remover produto", error)
@@ -183,6 +186,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                         images: selected.images,
                         variants: selected.variants ?? [],
                         featured: selected.featured,
+                        weeklyCurated: Boolean(selected.weeklyCurated),
                         inStock: selected.inStock
                       }
                     : undefined
