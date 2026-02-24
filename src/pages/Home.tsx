@@ -40,6 +40,11 @@ export function Home() {
     queryFn: () => ProductsRepo.list({ featured: true, pageSize: 4 })
   });
 
+  const weeklyCurationQuery = useQuery({
+    queryKey: ["weekly-curation"],
+    queryFn: () => ProductsRepo.list({ weeklyCurated: true, pageSize: 4, sort: "featured" })
+  });
+
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
     queryFn: () => ProductsRepo.listCategories()
@@ -232,23 +237,30 @@ export function Home() {
                 <span className="text-xs uppercase tracking-[0.2em] text-ink-500">Seleção</span>
               </div>
               <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {featuredQuery.isLoading
+                {weeklyCurationQuery.isLoading
                   ? Array.from({ length: 4 }).map((_, index) => (
                       <Skeleton key={index} className="h-40 w-full" />
                     ))
-                  : featuredQuery.data?.items.map((product) => (
-                      <div key={product.id} className="rounded-2xl bg-white/80 p-3 shadow-soft">
-                        <img
-                          src={product.images[0]}
-                          alt={product.name}
-                          className="h-28 w-full rounded-xl object-cover"
-                          loading="eager"
-                          decoding="async"
-                        />
-                        <p className="mt-2 text-sm font-semibold text-ink-900">{product.name}</p>
-                        <p className="text-xs text-ink-600">{product.category}</p>
-                      </div>
-                    ))}
+                  : weeklyCurationQuery.data?.items.length
+                    ? weeklyCurationQuery.data.items.map((product) => (
+                        <div key={product.id} className="rounded-2xl bg-white/80 p-3 shadow-soft">
+                          <img
+                            src={product.images[0]}
+                            alt={product.name}
+                            className="h-28 w-full rounded-xl object-cover"
+                            loading="eager"
+                            decoding="async"
+                          />
+                          <p className="mt-2 text-sm font-semibold text-ink-900">{product.name}</p>
+                          <p className="text-xs text-ink-600">{product.category}</p>
+                        </div>
+                      ))
+                    : (
+                        <div className="col-span-full rounded-2xl border border-sand-200/70 bg-white/70 p-4 text-sm text-ink-600">
+                          Nenhum produto selecionado para a curadoria da semana ainda. Marque no
+                          painel admin.
+                        </div>
+                      )}
               </div>
             </div>
           </section>

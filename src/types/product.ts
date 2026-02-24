@@ -8,6 +8,7 @@
   images: string[];
   variants?: string[];
   featured: boolean;
+  weeklyCurated?: boolean;
   inStock: boolean;
   createdAt: string;
   updatedAt: string;

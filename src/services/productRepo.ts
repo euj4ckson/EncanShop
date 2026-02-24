@@ -9,6 +9,7 @@ export type ProductListParams = {
   page?: number;
   pageSize?: number;
   featured?: boolean;
+  weeklyCurated?: boolean;
 };
 
 export type ProductListResult = {

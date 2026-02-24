@@ -48,6 +48,7 @@ const productSchema = z.object({
     .max(12, "Máximo de 12 variações")
     .default([]),
   featured: z.boolean().default(false),
+  weeklyCurated: z.boolean().default(false),
   inStock: z.boolean().default(true)
 });
 
@@ -72,6 +73,7 @@ export function AdminProductForm({
       images: [],
       variants: [],
       featured: false,
+      weeklyCurated: false,
       inStock: true
     }
   });
@@ -210,6 +212,10 @@ export function AdminProductForm({
         <label className="flex items-center gap-2 text-sm text-ink-700">
           <input type="checkbox" {...form.register("featured")} />
           Destaque
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" {...form.register("weeklyCurated")} />
+          Curadoria da semana
         </label>
         <label className="flex items-center gap-2 text-sm text-ink-700">
           <input type="checkbox" {...form.register("inStock")} />

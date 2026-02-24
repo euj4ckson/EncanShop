@@ -70,6 +70,7 @@ export const ProductRepoLocal: ProductRepo = {
       search,
       category,
       featured,
+      weeklyCurated,
       sort = "featured",
       page = 0,
       pageSize = PAGE_SIZE
@@ -79,6 +80,10 @@ export const ProductRepoLocal: ProductRepo = {
 
     if (featured) {
       products = products.filter((product) => product.featured);
+    }
+
+    if (weeklyCurated !== undefined) {
+      products = products.filter((product) => Boolean(product.weeklyCurated) === weeklyCurated);
     }
 
     if (category && category !== "all") {
