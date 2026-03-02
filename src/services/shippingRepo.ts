@@ -2,12 +2,18 @@ import type { ShippingQuote } from "@/types/order";
 import { requestJson } from "@/services/http";
 
 type ViaCepResponse = {
-  cep?: string;
   logradouro?: string;
   bairro?: string;
   localidade?: string;
   uf?: string;
   erro?: boolean;
+};
+
+type BrasilApiResponse = {
+  street?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
 };
 
 function normalizeCep(value: string): string {
@@ -31,20 +37,63 @@ function calculateFreight(cep: string, subtotal: number): { amount: number; etaD
   return { amount: 26.9, etaDays: 8 };
 }
 
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 6500): Promise<T | null> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json"
+      }
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function lookupCepClient(cep: string): Promise<{
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+} | null> {
+  const viaCep = await fetchJsonWithTimeout<ViaCepResponse>(`https://viacep.com.br/ws/${cep}/json/`);
+  if (viaCep && !viaCep.erro) {
+    return {
+      street: viaCep.logradouro || "",
+      neighborhood: viaCep.bairro || "",
+      city: viaCep.localidade || "",
+      state: viaCep.uf || ""
+    };
+  }
+
+  const brasilApi = await fetchJsonWithTimeout<BrasilApiResponse>(
+    `https://brasilapi.com.br/api/cep/v1/${cep}`
+  );
+  if (!brasilApi) return null;
+
+  return {
+    street: brasilApi.street || "",
+    neighborhood: brasilApi.neighborhood || "",
+    city: brasilApi.city || "",
+    state: brasilApi.state || ""
+  };
+}
+
 async function quoteLocal(input: { cep: string; subtotal: number }): Promise<ShippingQuote> {
   const cep = normalizeCep(input.cep);
   if (cep.length !== 8) {
-    throw new Error("CEP inválido.");
+    throw new Error("CEP invalido.");
   }
 
-  const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-  if (!response.ok) {
+  const address = await lookupCepClient(cep);
+  if (!address) {
     throw new Error("Falha ao consultar CEP.");
-  }
-
-  const viaCep = (await response.json()) as ViaCepResponse;
-  if (viaCep.erro) {
-    throw new Error("CEP não encontrado.");
   }
 
   const freight = calculateFreight(cep, input.subtotal);
@@ -52,10 +101,10 @@ async function quoteLocal(input: { cep: string; subtotal: number }): Promise<Shi
     amount: freight.amount,
     etaDays: freight.etaDays,
     cep,
-    street: viaCep.logradouro || "",
-    neighborhood: viaCep.bairro || "",
-    city: viaCep.localidade || "",
-    state: viaCep.uf || ""
+    street: address.street,
+    neighborhood: address.neighborhood,
+    city: address.city,
+    state: address.state
   };
 }
 
@@ -66,13 +115,13 @@ export const ShippingRepo = {
         method: "POST",
         body: JSON.stringify(input)
       });
-    } catch (error) {
-      // In local Vite dev, /api routes are not available. Fallback keeps checkout usable.
-      if (import.meta.env.DEV) {
-        return quoteLocal(input);
+    } catch (apiError) {
+      try {
+        return await quoteLocal(input);
+      } catch (localError) {
+        if (localError instanceof Error) throw localError;
+        throw apiError;
       }
-      throw error;
     }
   }
 };
-

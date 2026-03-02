@@ -10,6 +10,22 @@ type ViaCepResponse = {
   erro?: boolean;
 };
 
+type BrasilApiResponse = {
+  cep?: string;
+  street?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+};
+
+type AddressLookup = {
+  cep: string;
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+};
+
 function calculateFreight(cep: string, subtotal: number): { amount: number; etaDays: number } {
   if (subtotal >= 250) {
     return { amount: 0, etaDays: 5 };
@@ -27,6 +43,53 @@ function calculateFreight(cep: string, subtotal: number): { amount: number; etaD
   return { amount: 26.9, etaDays: 8 };
 }
 
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 6500): Promise<T | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json"
+      }
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function lookupCep(cep: string): Promise<AddressLookup | null> {
+  const viaCep = await fetchJsonWithTimeout<ViaCepResponse>(`https://viacep.com.br/ws/${cep}/json/`);
+  if (viaCep && !viaCep.erro) {
+    return {
+      cep,
+      street: viaCep.logradouro || "",
+      neighborhood: viaCep.bairro || "",
+      city: viaCep.localidade || "",
+      state: viaCep.uf || ""
+    };
+  }
+
+  const brasilApi = await fetchJsonWithTimeout<BrasilApiResponse>(
+    `https://brasilapi.com.br/api/cep/v1/${cep}`
+  );
+  if (brasilApi) {
+    return {
+      cep,
+      street: brasilApi.street || "",
+      neighborhood: brasilApi.neighborhood || "",
+      city: brasilApi.city || "",
+      state: brasilApi.state || ""
+    };
+  }
+
+  return null;
+}
+
 export default async function handler(req: any, res: any) {
   try {
     if (req.method !== "POST") {
@@ -41,13 +104,9 @@ export default async function handler(req: any, res: any) {
     }
     const subtotal = parseNumber(body.subtotal, 0);
 
-    const viaCepResponse = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    if (!viaCepResponse.ok) {
+    const address = await lookupCep(cep);
+    if (!address) {
       return json(res, 502, { error: "Falha ao consultar CEP." });
-    }
-    const viaCep = (await viaCepResponse.json()) as ViaCepResponse;
-    if (viaCep.erro) {
-      return json(res, 404, { error: "CEP nao encontrado." });
     }
 
     const freight = calculateFreight(cep, subtotal);
@@ -55,10 +114,10 @@ export default async function handler(req: any, res: any) {
       amount: freight.amount,
       etaDays: freight.etaDays,
       cep,
-      street: viaCep.logradouro || "",
-      neighborhood: viaCep.bairro || "",
-      city: viaCep.localidade || "",
-      state: viaCep.uf || ""
+      street: address.street,
+      neighborhood: address.neighborhood,
+      city: address.city,
+      state: address.state
     };
 
     return json(res, 200, quote);
