@@ -9,9 +9,20 @@ type CustomerInternal = Customer & {
   passwordHash: string;
 };
 
-const seedProducts = JSON.parse(
-  readFileSync(new URL("../../src/data/seedProducts.json", import.meta.url), "utf8")
-) as Product[];
+let seedProductsCache: Product[] | null = null;
+
+function getSeedProducts(): Product[] {
+  if (seedProductsCache) return seedProductsCache;
+  try {
+    const raw = readFileSync(new URL("../../src/data/seedProducts.json", import.meta.url), "utf8");
+    const parsed = JSON.parse(raw) as Product[];
+    seedProductsCache = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // Avoid hard-crashing serverless functions that do not depend on product seed data.
+    seedProductsCache = [];
+  }
+  return seedProductsCache;
+}
 
 const CUSTOMERS_KEY = "encantartes_customers";
 const ORDERS_KEY = "encantartes_orders";
@@ -43,7 +54,7 @@ export async function writeFragrances(value: Fragrance[]): Promise<void> {
 }
 
 export async function readProducts(): Promise<Product[]> {
-  return readJsonValue<Product[]>(PRODUCTS_KEY, seedProducts);
+  return readJsonValue<Product[]>(PRODUCTS_KEY, getSeedProducts());
 }
 
 export function stripCustomerSecret(customer: CustomerInternal): Customer {
