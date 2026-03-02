@@ -15,6 +15,7 @@ import { PAGE_SIZE } from "@/lib/config";
 import { ProductsRepo } from "@/services/productsRepo";
 import { formatCurrency } from "@/lib/utils";
 import type { ProductSort } from "@/services/productRepo";
+import { PrefetchLink } from "@/routes/PrefetchLink";
 import logo from "@/assets/logo.svg";
 
 export function Home() {
@@ -87,15 +88,19 @@ export function Home() {
     [productsQuery.data]
   );
 
-  const heroImages = useMemo(
+  const heroShowcaseItems = useMemo(
     () =>
-      featuredQuery.data?.items
-        .flatMap((item) => item.images)
-        .filter(Boolean)
-        .slice(0, 3) ?? [],
+      (featuredQuery.data?.items ?? [])
+        .flatMap((product) =>
+          product.images.filter(Boolean).map((image) => ({
+            productId: product.id,
+            productName: product.name,
+            image
+          }))
+        )
+        .slice(0, 3),
     [featuredQuery.data]
   );
-
   const heroHighlight = featuredQuery.data?.items?.[0];
 
   const whatsappLink = buildWhatsAppLink(
@@ -172,55 +177,81 @@ export function Home() {
 
               <div className="relative reveal reveal-delay-2">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="glass-panel col-span-2 overflow-hidden p-0">
-                    {heroImages[0] ? (
-                      <img
-                        src={heroImages[0]}
-                        alt="Produto em destaque"
-                        className="h-64 w-full object-cover"
-                        loading="eager"
-                        decoding="async"
-                      />
+                  <div className="col-span-2">
+                    {heroShowcaseItems[0] ? (
+                      <PrefetchLink
+                        to={`/produto/${heroShowcaseItems[0].productId}`}
+                        className="glass-panel group block overflow-hidden p-0"
+                        aria-label={`Ver ${heroShowcaseItems[0].productName}`}
+                      >
+                        <img
+                          src={heroShowcaseItems[0].image}
+                          alt={heroShowcaseItems[0].productName}
+                          className="h-64 w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          loading="eager"
+                          decoding="async"
+                        />
+                      </PrefetchLink>
                     ) : (
                       <Skeleton className="h-64 w-full" />
                     )}
                   </div>
-                  <div className="glass-panel overflow-hidden p-0">
-                    {heroImages[1] ? (
-                      <img
-                        src={heroImages[1]}
-                        alt="Produto EncantArtes"
-                        className="h-36 w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
+                  <div>
+                    {heroShowcaseItems[1] ? (
+                      <PrefetchLink
+                        to={`/produto/${heroShowcaseItems[1].productId}`}
+                        className="glass-panel group block overflow-hidden p-0"
+                        aria-label={`Ver ${heroShowcaseItems[1].productName}`}
+                      >
+                        <img
+                          src={heroShowcaseItems[1].image}
+                          alt={heroShowcaseItems[1].productName}
+                          className="h-36 w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </PrefetchLink>
                     ) : (
                       <Skeleton className="h-36 w-full" />
                     )}
                   </div>
-                  <div className="glass-panel overflow-hidden p-0">
-                    {heroImages[2] ? (
-                      <img
-                        src={heroImages[2]}
-                        alt="Produto EncantArtes"
-                        className="h-36 w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
+                  <div>
+                    {heroShowcaseItems[2] ? (
+                      <PrefetchLink
+                        to={`/produto/${heroShowcaseItems[2].productId}`}
+                        className="glass-panel group block overflow-hidden p-0"
+                        aria-label={`Ver ${heroShowcaseItems[2].productName}`}
+                      >
+                        <img
+                          src={heroShowcaseItems[2].image}
+                          alt={heroShowcaseItems[2].productName}
+                          className="h-36 w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </PrefetchLink>
                     ) : (
                       <Skeleton className="h-36 w-full" />
                     )}
                   </div>
                 </div>
-                <div className="glass-panel absolute -bottom-8 left-6 hidden max-w-[260px] p-4 lg:block animate-floaty">
-                  <p className="text-xs uppercase tracking-[0.2em] text-ink-500">Destaque</p>
-                  <p className="mt-1 text-sm font-semibold text-ink-900">
-                    {heroHighlight?.name ?? "Seleção curada"}
-                  </p>
-                  <p className="text-sm text-ink-600">
-                    {heroHighlight ? formatCurrency(heroHighlight.price) : "A partir de R$ 58"}
-                  </p>
-                </div>
+                {heroHighlight ? (
+                  <PrefetchLink
+                    to={`/produto/${heroHighlight.id}`}
+                    className="glass-panel absolute -bottom-8 left-6 hidden max-w-[260px] animate-floaty p-4 transition hover:-translate-y-0.5 lg:block"
+                    aria-label={`Ver destaque ${heroHighlight.name}`}
+                  >
+                    <p className="text-xs uppercase tracking-[0.2em] text-ink-500">Destaque</p>
+                    <p className="mt-1 text-sm font-semibold text-ink-900">{heroHighlight.name}</p>
+                    <p className="text-sm text-ink-600">{formatCurrency(heroHighlight.price)}</p>
+                  </PrefetchLink>
+                ) : (
+                  <div className="glass-panel absolute -bottom-8 left-6 hidden max-w-[260px] animate-floaty p-4 lg:block">
+                    <p className="text-xs uppercase tracking-[0.2em] text-ink-500">Destaque</p>
+                    <p className="mt-1 text-sm font-semibold text-ink-900">Seleção curada</p>
+                    <p className="text-sm text-ink-600">A partir de R$ 58</p>
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -243,17 +274,26 @@ export function Home() {
                     ))
                   : weeklyCurationQuery.data?.items.length
                     ? weeklyCurationQuery.data.items.map((product) => (
-                        <div key={product.id} className="rounded-2xl bg-white/80 p-3 shadow-soft">
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="h-28 w-full rounded-xl object-cover"
-                            loading="eager"
-                            decoding="async"
-                          />
+                        <PrefetchLink
+                          key={product.id}
+                          to={`/produto/${product.id}`}
+                          className="rounded-2xl bg-white/80 p-3 shadow-soft transition hover:-translate-y-0.5 hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-300"
+                          aria-label={`Ver ${product.name}`}
+                        >
+                          {product.images[0] ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="h-28 w-full rounded-xl object-cover"
+                              loading="eager"
+                              decoding="async"
+                            />
+                          ) : (
+                            <Skeleton className="h-28 w-full rounded-xl" />
+                          )}
                           <p className="mt-2 text-sm font-semibold text-ink-900">{product.name}</p>
                           <p className="text-xs text-ink-600">{product.category}</p>
-                        </div>
+                        </PrefetchLink>
                       ))
                     : (
                         <div className="col-span-full rounded-2xl border border-sand-200/70 bg-white/70 p-4 text-sm text-ink-600">
