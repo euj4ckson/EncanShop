@@ -1,5 +1,5 @@
-import { json } from "./_lib/http";
-import { getPublicKey } from "./_lib/mercadopago";
+import { json } from "./_lib/http.js";
+import { getPublicKey } from "./_lib/mercadopago.js";
 
 export default async function handler(_req: any, res: any) {
   try {

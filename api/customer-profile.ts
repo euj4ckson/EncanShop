@@ -1,8 +1,8 @@
 import type { Address } from "../src/types/customer";
-import { getQueryParam, json, normalizeCep, readJsonBody } from "./_lib/http";
-import { requireAuthedCustomer } from "./_lib/customerAuth";
-import { generateId } from "./_lib/security";
-import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store";
+import { getQueryParam, json, normalizeCep, readJsonBody } from "./_lib/http.js";
+import { requireAuthedCustomer } from "./_lib/customerAuth.js";
+import { generateId } from "./_lib/security.js";
+import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store.js";
 
 function validateAddress(address: Partial<Address>): string | null {
   if (normalizeCep(address.cep || "").length !== 8) return "CEP invalido.";

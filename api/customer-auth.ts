@@ -1,7 +1,7 @@
 import type { Customer } from "../src/types/customer";
-import { getQueryParam, json, normalizeEmail, readJsonBody } from "./_lib/http";
-import { createCustomerToken, generateId, hashPassword, verifyPassword } from "./_lib/security";
-import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store";
+import { getQueryParam, json, normalizeEmail, readJsonBody } from "./_lib/http.js";
+import { createCustomerToken, generateId, hashPassword, verifyPassword } from "./_lib/security.js";
+import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store.js";
 
 function validatePassword(password: string): string | null {
   if (password.length < 6) return "A senha deve ter no minimo 6 caracteres.";

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Order, PaymentStatus } from "../../src/types/order";
-import { splitFullName } from "./security";
-import { onlyDigits, pickFirstString } from "./http";
+import { splitFullName } from "./security.js";
+import { onlyDigits, pickFirstString } from "./http.js";
 
 type MercadoPagoPreferenceResponse = {
   id: string;

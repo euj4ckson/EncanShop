@@ -1,5 +1,5 @@
 import type { ShippingQuote } from "../src/types/order";
-import { json, normalizeCep, parseNumber, readJsonBody } from "./_lib/http";
+import { json, normalizeCep, parseNumber, readJsonBody } from "./_lib/http.js";
 
 type ViaCepResponse = {
   cep?: string;

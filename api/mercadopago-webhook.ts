@@ -1,13 +1,13 @@
-import { json, pickFirstString } from "./_lib/http";
-import { getAdminEmail, sendEmail } from "./_lib/email";
+import { json, pickFirstString } from "./_lib/http.js";
+import { getAdminEmail, sendEmail } from "./_lib/email.js";
 import {
   getPaymentById,
   mapPaymentToOrderStatus,
   refundPaymentById,
   validateWebhookSignature
-} from "./_lib/mercadopago";
-import { buildOrderEmail } from "./_lib/orderEmail";
-import { readOrders, writeOrders } from "./_lib/store";
+} from "./_lib/mercadopago.js";
+import { buildOrderEmail } from "./_lib/orderEmail.js";
+import { readOrders, writeOrders } from "./_lib/store.js";
 
 async function notifyStatusChange(orderId: string) {
   const orders = await readOrders();

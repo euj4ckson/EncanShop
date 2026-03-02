@@ -1,7 +1,7 @@
 import type { Customer } from "../../src/types/customer";
 import type { Fragrance } from "../../src/types/fragrance";
 import type { Order } from "../../src/types/order";
-import { readJsonValue, writeJsonValue } from "./redis";
+import { readJsonValue, writeJsonValue } from "./redis.js";
 
 type CustomerInternal = Customer & {
   passwordHash: string;

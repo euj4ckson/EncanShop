@@ -1,19 +1,19 @@
 import type { Address } from "../src/types/customer";
 import type { CartItem } from "../src/types/cart";
 import type { CheckoutPaymentMethod, Order } from "../src/types/order";
-import { getQueryParam, json, normalizeCep, onlyDigits, parseNumber, readJsonBody } from "./_lib/http";
-import { requireAuthedCustomer } from "./_lib/customerAuth";
-import { getAdminEmail, sendEmail } from "./_lib/email";
+import { getQueryParam, json, normalizeCep, onlyDigits, parseNumber, readJsonBody } from "./_lib/http.js";
+import { requireAuthedCustomer } from "./_lib/customerAuth.js";
+import { getAdminEmail, sendEmail } from "./_lib/email.js";
 import {
   cancelPaymentById,
   createCardPreference,
   createPixPayment,
   mapPaymentToOrderStatus,
   refundPaymentById
-} from "./_lib/mercadopago";
-import { buildOrderEmail } from "./_lib/orderEmail";
-import { generateId } from "./_lib/security";
-import { readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store";
+} from "./_lib/mercadopago.js";
+import { buildOrderEmail } from "./_lib/orderEmail.js";
+import { generateId } from "./_lib/security.js";
+import { readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
 
 function normalizeAddress(value: Partial<Address>): Address {
   return {

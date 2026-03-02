@@ -1,7 +1,7 @@
 import type { Fragrance } from "../src/types/fragrance";
-import { getQueryParam, json, readHeader, readJsonBody } from "./_lib/http";
-import { generateId } from "./_lib/security";
-import { readFragrances, writeFragrances } from "./_lib/store";
+import { getQueryParam, json, readHeader, readJsonBody } from "./_lib/http.js";
+import { generateId } from "./_lib/security.js";
+import { readFragrances, writeFragrances } from "./_lib/store.js";
 
 function getAdminPasswordFromEnv(): string {
   const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";

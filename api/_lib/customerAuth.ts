@@ -1,6 +1,6 @@
-import { json, readBearerToken } from "./http";
-import { verifyCustomerToken } from "./security";
-import { readCustomers } from "./store";
+import { json, readBearerToken } from "./http.js";
+import { verifyCustomerToken } from "./security.js";
+import { readCustomers } from "./store.js";
 
 export async function getAuthedCustomer(req: any) {
   const token = readBearerToken(req);
