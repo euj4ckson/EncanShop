@@ -1,33 +1,15 @@
-import { readFileSync } from "node:fs";
 import type { Customer } from "../../src/types/customer";
 import type { Fragrance } from "../../src/types/fragrance";
 import type { Order } from "../../src/types/order";
-import type { Product } from "../../src/types/product";
 import { readJsonValue, writeJsonValue } from "./redis";
 
 type CustomerInternal = Customer & {
   passwordHash: string;
 };
 
-let seedProductsCache: Product[] | null = null;
-
-function getSeedProducts(): Product[] {
-  if (seedProductsCache) return seedProductsCache;
-  try {
-    const raw = readFileSync(new URL("../../src/data/seedProducts.json", import.meta.url), "utf8");
-    const parsed = JSON.parse(raw) as Product[];
-    seedProductsCache = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    // Avoid hard-crashing serverless functions that do not depend on product seed data.
-    seedProductsCache = [];
-  }
-  return seedProductsCache;
-}
-
 const CUSTOMERS_KEY = "encantartes_customers";
 const ORDERS_KEY = "encantartes_orders";
 const FRAGRANCES_KEY = "encantartes_fragrances";
-const PRODUCTS_KEY = "encantartes_products";
 
 export async function readCustomers(): Promise<CustomerInternal[]> {
   return readJsonValue<CustomerInternal[]>(CUSTOMERS_KEY, []);
@@ -51,10 +33,6 @@ export async function readFragrances(): Promise<Fragrance[]> {
 
 export async function writeFragrances(value: Fragrance[]): Promise<void> {
   await writeJsonValue(FRAGRANCES_KEY, value);
-}
-
-export async function readProducts(): Promise<Product[]> {
-  return readJsonValue<Product[]>(PRODUCTS_KEY, getSeedProducts());
 }
 
 export function stripCustomerSecret(customer: CustomerInternal): Customer {
