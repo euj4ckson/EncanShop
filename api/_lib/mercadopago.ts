@@ -35,6 +35,15 @@ type MercadoPagoRefundDetail = {
   status: string;
 };
 
+type MercadoPagoErrorPayload = {
+  message?: string;
+  error?: string;
+  cause?: Array<{
+    code?: string | number;
+    description?: string;
+  }>;
+};
+
 function buildIdempotencyKey(seed: string): string {
   const normalized = seed.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 64);
   if (normalized) return normalized;
@@ -71,10 +80,30 @@ async function mpFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as T | { message?: string; cause?: unknown }) : null;
+  const payload = text
+    ? (() => {
+        try {
+          return JSON.parse(text) as T | MercadoPagoErrorPayload;
+        } catch {
+          return null;
+        }
+      })()
+    : null;
 
   if (!response.ok) {
-    const message = (payload as { message?: string } | null)?.message || "Falha no Mercado Pago.";
+    const errorPayload = payload as MercadoPagoErrorPayload | null;
+    const apiMessage = errorPayload?.message || errorPayload?.error || "Falha no Mercado Pago.";
+    const causeDescription = errorPayload?.cause?.find((item) => item?.description)?.description || "";
+    const rawMessage = `${apiMessage} ${causeDescription}`.trim();
+    const normalized = rawMessage.toLowerCase();
+
+    if (normalized.includes("without key enabled for qr render")) {
+      throw new Error(
+        "PIX indisponivel: a conta do Mercado Pago usada no MP_ACCESS_TOKEN nao possui chave PIX ativa."
+      );
+    }
+
+    const message = rawMessage || "Falha no Mercado Pago.";
     throw new Error(message);
   }
 
