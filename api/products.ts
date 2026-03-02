@@ -305,7 +305,12 @@ function validateProductInput(value: unknown): asserts value is ProductInput {
 }
 
 function getAdminPasswordFromEnv(): string {
-  return process.env.VITE_ADMIN_PASSWORD || "encantartes123";
+  const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
+  if (password) return password;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Configuracao ausente: defina ADMIN_PASSWORD.");
+  }
+  return "encantartes123";
 }
 
 function readHeader(value: unknown): string {

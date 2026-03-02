@@ -9,17 +9,19 @@ export function buildWhatsAppLink(phoneDigits: string, message: string): string 
 
 export function buildProductMessage(
   product: Product,
-  options?: { variant?: string }
+  options?: { variant?: string; fragrance?: string }
 ): string {
   const variantLine = options?.variant ? `\nCor/Variação: ${options.variant}` : "";
-  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(product.price)}.${variantLine}`;
+  const fragranceLine = options?.fragrance ? `\nFragrância: ${options.fragrance}` : "";
+  return `Olá! Quero comprar na EncantArtes: ${product.name} por ${formatCurrency(product.price)}.${variantLine}${fragranceLine}`;
 }
 
 export function buildCartMessage(items: CartItem[], total: number): string {
   const lines = items.map((item, index) => {
     const subtotal = formatCurrency(item.price * item.quantity);
     const variantLine = item.variant ? `\n   Cor/Variação: ${item.variant}` : "";
-    return `${index + 1}. *${item.name}*${variantLine}\n   Quantidade: ${item.quantity}\n   Subtotal: ${subtotal}`;
+    const fragranceLine = item.fragrance ? `\n   Fragrância: ${item.fragrance}` : "";
+    return `${index + 1}. *${item.name}*${variantLine}${fragranceLine}\n   Quantidade: ${item.quantity}\n   Subtotal: ${subtotal}`;
   });
 
   return [

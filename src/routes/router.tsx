@@ -10,6 +10,7 @@ const ProductDetail = React.lazy(() =>
   import("@/pages/ProductDetail").then((m) => ({ default: m.ProductDetail }))
 );
 const Cart = React.lazy(() => import("@/pages/Cart").then((m) => ({ default: m.Cart })));
+const Account = React.lazy(() => import("@/pages/Account").then((m) => ({ default: m.Account })));
 const AdminPage = React.lazy(() => import("@/pages/Admin").then((m) => ({ default: m.Admin })));
 const AdminLogin = React.lazy(() =>
   import("@/pages/AdminLogin").then((m) => ({ default: m.AdminLogin }))
@@ -61,7 +62,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: "produto/:id", element: <ProductDetail /> },
-      { path: "carrinho", element: <Cart /> }
+      { path: "carrinho", element: <Cart /> },
+      { path: "conta", element: <Account /> }
     ]
   },
   {

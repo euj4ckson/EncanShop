@@ -13,15 +13,18 @@ import { useContacts } from "@/services/useContacts";
 import { useSeo } from "@/lib/seo";
 import { ProductsRepo } from "@/services/productsRepo";
 import { PrefetchLink } from "@/routes/PrefetchLink";
+import { useFragrances } from "@/services/useFragrances";
 
 export function ProductDetail() {
   const { id } = useParams();
   const { addItem } = useCart();
   const { toast } = useToast();
   const { data: contacts } = useContacts();
+  const fragrancesQuery = useFragrances();
   const [activeImage, setActiveImage] = React.useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
   const [selectedVariant, setSelectedVariant] = React.useState("");
+  const [selectedFragrance, setSelectedFragrance] = React.useState("");
 
   React.useEffect(() => {
     if (!isPreviewOpen) return;
@@ -55,10 +58,15 @@ export function ProductDetail() {
     [product?.variants]
   );
   const requiresVariant = availableVariants.length > 0;
-  const canAddToCart = product ? (!requiresVariant || Boolean(selectedVariant)) : false;
+  const availableFragrances = fragrancesQuery.data ?? [];
+  const requiresFragrance = availableFragrances.length > 0;
+  const canAddToCart = product
+    ? (!requiresVariant || Boolean(selectedVariant)) && (!requiresFragrance || Boolean(selectedFragrance))
+    : false;
 
   React.useEffect(() => {
     setSelectedVariant("");
+    setSelectedFragrance("");
   }, [product?.id]);
 
   useSeo({
@@ -76,17 +84,26 @@ export function ProductDetail() {
       });
       return;
     }
+    if (requiresFragrance && !selectedFragrance) {
+      toast({
+        title: "Selecione uma fragrância",
+        description: "Escolha a fragrância antes de adicionar ao carrinho.",
+        variant: "error"
+      });
+      return;
+    }
     addItem({
       productId: product.id,
       name: product.name,
       price: product.price,
       image: product.images[0],
       variant: selectedVariant || undefined,
+      fragrance: selectedFragrance || undefined,
       quantity: 1
     });
     toast({
       title: "Adicionado ao carrinho",
-      description: selectedVariant ? `${product.name} (${selectedVariant})` : product.name,
+      description: [product.name, selectedVariant, selectedFragrance].filter(Boolean).join(" - "),
       variant: "success"
     });
   };
@@ -118,7 +135,10 @@ export function ProductDetail() {
 
   const whatsappLink = buildWhatsAppLink(
     contacts?.whatsapp || "553291109045",
-    buildProductMessage(product, { variant: selectedVariant || undefined })
+    buildProductMessage(product, {
+      variant: selectedVariant || undefined,
+      fragrance: selectedFragrance || undefined
+    })
   );
 
   return (
@@ -211,6 +231,34 @@ export function ProductDetail() {
               </div>
               <p className="text-xs text-ink-500">
                 Escolha uma opção para liberar os botões de compra.
+              </p>
+            </div>
+          ) : null}
+          {requiresFragrance ? (
+            <div className="space-y-2">
+              <Label>Fragrância (obrigatório)</Label>
+              <div className="flex flex-wrap gap-2">
+                {availableFragrances.map((fragrance) => {
+                  const isSelected = selectedFragrance === fragrance.name;
+                  return (
+                    <button
+                      key={fragrance.id}
+                      type="button"
+                      onClick={() => setSelectedFragrance(fragrance.name)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                        isSelected
+                          ? "border-gold-500 bg-gold-100 text-ink-900 ring-2 ring-gold-200"
+                          : "border-sand-200/70 bg-white/80 text-ink-700 hover:border-sand-300"
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      {fragrance.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-ink-500">
+                Escolha uma fragrância para liberar os botões de compra.
               </p>
             </div>
           ) : null}

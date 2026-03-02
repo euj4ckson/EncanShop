@@ -52,10 +52,24 @@ Com isso, produtos cadastrados no `/admin` em produção passam a aparecer para 
 
 ```bash
 VITE_ADMIN_PASSWORD="sua_senha_segura"
+ADMIN_PASSWORD="sua_senha_segura"
 UPSTASH_REDIS_REST_URL="..."
 UPSTASH_REDIS_REST_TOKEN="..."
 BLOB_READ_WRITE_TOKEN="..."
+CUSTOMER_AUTH_SECRET="..."
+MP_ACCESS_TOKEN="..."
+MP_PUBLIC_KEY="..."
+MP_WEBHOOK_SECRET="..."
+APP_BASE_URL="https://seu-dominio.com"
+RESEND_API_KEY="..."
+ORDER_EMAIL_FROM="EncantArtes <pedidos@seu-dominio.com>"
+ORDER_ADMIN_EMAIL="jacksonduardo6@gmail.com"
 ```
+
+Observação de segurança:
+
+- Em produção, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` são obrigatórios.
+- Sem `MP_WEBHOOK_SECRET` em produção, o webhook é rejeitado por segurança.
 
 4. Faça um novo deploy.
 
@@ -78,6 +92,38 @@ BLOB_READ_WRITE_TOKEN="..."
 - Em desenvolvimento local, a persistência continua via LocalStorage em `encantartes_products`.
 
 Para redefinir a vitrine, limpe o LocalStorage do navegador.
+
+## Checkout online (Mercado Pago)
+
+Agora o checkout possui:
+
+- WhatsApp (fluxo já existente)
+- PIX com QR Code
+- Cartão de crédito (Checkout Mercado Pago, até 4x)
+- Webhook para atualização automática de status do pedido (`pending`, `approved`, `rejected`, `cancelled`)
+- Campo de observações do pedido no checkout
+- Cancelamento de pedido na área do cliente com tentativa de cancelamento/estorno no Mercado Pago
+
+### Endpoints adicionados
+
+- `/api/customer-auth` (cadastro/login)
+- `/api/customer-profile` (perfil e endereços)
+- `/api/shipping` (cálculo de frete por CEP)
+- `/api/orders` (criação e consulta de pedidos)
+- `/api/fragrances` (fragrâncias globais)
+- `/api/checkout-config`
+- `/api/mercadopago-webhook`
+
+### Rotas de frontend adicionadas
+
+- `/conta` para login/cadastro e área do cliente (pedidos + endereços)
+- `/carrinho` com checkout completo
+
+## Fragrâncias globais
+
+- As fragrâncias são gerenciadas no painel `/admin` em **Fragrâncias**.
+- Não precisam ser cadastradas por produto.
+- A seleção feita no detalhe do produto é salva no carrinho e no pedido.
 
 ## Testes
 

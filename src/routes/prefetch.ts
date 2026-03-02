@@ -1,6 +1,7 @@
 ﻿export const routePrefetchers: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/pages/Home"),
   "/carrinho": () => import("@/pages/Cart"),
+  "/conta": () => import("@/pages/Account"),
   "/admin": () => import("@/pages/Admin"),
   "/produto": () => import("@/pages/ProductDetail")
 };

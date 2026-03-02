@@ -10,3 +10,4 @@ export const CONTACTS_STORAGE_KEY = "encantartes_contacts";
 export const PRODUCTS_STORAGE_KEY = "encantartes_products";
 export const CART_STORAGE_KEY = "encantartes_cart";
 export const ADMIN_SESSION_KEY = "encantartes_admin_session";
+export const CUSTOMER_TOKEN_KEY = "encantartes_customer_token";
