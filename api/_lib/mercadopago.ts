@@ -35,6 +35,12 @@ type MercadoPagoRefundDetail = {
   status: string;
 };
 
+function buildIdempotencyKey(seed: string): string {
+  const normalized = seed.replace(/[^a-zA-Z0-9:_-]/g, "-").slice(0, 64);
+  if (normalized) return normalized;
+  return `mp-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 function getAccessToken(): string {
   const token = process.env.MP_ACCESS_TOKEN || "";
   if (!token) {
@@ -93,9 +99,13 @@ export async function createCardPreference(input: { order: Order; req: any }): P
   checkoutUrl: string;
 }> {
   const order = input.order;
+  const idempotencyKey = buildIdempotencyKey(`pref-${order.id}`);
 
   const response = await mpFetch<MercadoPagoPreferenceResponse>("/checkout/preferences", {
     method: "POST",
+    headers: {
+      "X-Idempotency-Key": idempotencyKey
+    },
     body: JSON.stringify({
       external_reference: order.id,
       metadata: {
@@ -160,9 +170,13 @@ export async function createPixPayment(input: {
   if (cpf.length !== 11) {
     throw new Error("CPF invalido para pagamento PIX.");
   }
+  const idempotencyKey = buildIdempotencyKey(`pix-${order.id}`);
 
   const response = await mpFetch<MercadoPagoPixResponse>("/v1/payments", {
     method: "POST",
+    headers: {
+      "X-Idempotency-Key": idempotencyKey
+    },
     body: JSON.stringify({
       transaction_amount: Number(order.total.toFixed(2)),
       description: `Pedido EncantArtes #${order.id}`,
@@ -198,8 +212,12 @@ export async function getPaymentById(paymentId: string): Promise<MercadoPagoPaym
 }
 
 export async function cancelPaymentById(paymentId: string): Promise<MercadoPagoPaymentDetail> {
+  const idempotencyKey = buildIdempotencyKey(`cancel-${paymentId}`);
   return mpFetch<MercadoPagoPaymentDetail>(`/v1/payments/${paymentId}`, {
     method: "PUT",
+    headers: {
+      "X-Idempotency-Key": idempotencyKey
+    },
     body: JSON.stringify({ status: "cancelled" })
   });
 }
@@ -210,8 +228,12 @@ export async function refundPaymentById(
 ): Promise<MercadoPagoRefundDetail> {
   const payload =
     typeof amount === "number" && Number.isFinite(amount) && amount > 0 ? { amount } : {};
+  const idempotencyKey = buildIdempotencyKey(`refund-${paymentId}-${payload.amount ?? "full"}`);
   return mpFetch<MercadoPagoRefundDetail>(`/v1/payments/${paymentId}/refunds`, {
     method: "POST",
+    headers: {
+      "X-Idempotency-Key": idempotencyKey
+    },
     body: JSON.stringify(payload)
   });
 }
