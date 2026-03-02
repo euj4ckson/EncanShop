@@ -11,8 +11,8 @@ type CartAction =
   | { type: "UPDATE"; itemKey: string; quantity: number }
   | { type: "CLEAR" };
 
-function getItemKey(item: Pick<CartItem, "productId" | "variant">): string {
-  return `${item.productId}::${item.variant?.trim() || ""}`;
+function getItemKey(item: Pick<CartItem, "productId" | "variant" | "fragrance">): string {
+  return `${item.productId}::${item.variant?.trim() || ""}::${item.fragrance?.trim() || ""}`;
 }
 
 function cartReducer(state: CartState, action: CartAction): CartState {
@@ -59,7 +59,7 @@ type CartContextValue = {
   addItem: (item: CartItem) => void;
   removeItem: (itemKey: string) => void;
   updateQuantity: (itemKey: string, quantity: number) => void;
-  getItemKey: (item: Pick<CartItem, "productId" | "variant">) => string;
+  getItemKey: (item: Pick<CartItem, "productId" | "variant" | "fragrance">) => string;
   clear: () => void;
 };
 

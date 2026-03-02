@@ -9,13 +9,15 @@ import { useToast } from "@/components/ui/Toast";
 import { clearSession } from "@/lib/auth";
 import { formatPhoneBR, slugify } from "@/lib/utils";
 import type { Product } from "@/types/product";
+import type { Fragrance } from "@/types/fragrance";
 import { PRODUCTS_BACKEND_MODE, ProductsRepo } from "@/services/productsRepo";
 import { ContactRepo } from "@/services/contactRepo";
 import { useContacts } from "@/services/useContacts";
 import { normalizeInstagram, normalizeWhatsapp } from "@/lib/contacts";
+import { FragranceRepo } from "@/services/fragranceRepo";
 
 export function Admin({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = React.useState<"products" | "settings">("products");
+  const [tab, setTab] = React.useState<"products" | "fragrances" | "settings">("products");
   const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState<Product | null>(null);
   const queryClient = useQueryClient();
@@ -32,6 +34,10 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
   const productsQuery = useQuery({
     queryKey: ["admin-products"],
     queryFn: () => ProductsRepo.listAll()
+  });
+  const fragrancesQuery = useQuery({
+    queryKey: ["admin-fragrances"],
+    queryFn: () => FragranceRepo.listAllForAdmin()
   });
 
   const createMutation = useMutation({
@@ -73,6 +79,34 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       toast({ title: "Produto removido" });
     },
     onError: (error) => showErrorToast("Falha ao remover produto", error)
+  });
+  const createFragranceMutation = useMutation({
+    mutationFn: (name: string) => FragranceRepo.create({ name, active: true }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-fragrances"] });
+      await queryClient.invalidateQueries({ queryKey: ["fragrances"] });
+      toast({ title: "Fragrância criada", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao criar fragrância", error)
+  });
+  const updateFragranceMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: Partial<Fragrance> }) =>
+      FragranceRepo.update(id, { name: values.name, active: values.active }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-fragrances"] });
+      await queryClient.invalidateQueries({ queryKey: ["fragrances"] });
+      toast({ title: "Fragrância atualizada", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao atualizar fragrância", error)
+  });
+  const deleteFragranceMutation = useMutation({
+    mutationFn: (id: string) => FragranceRepo.remove(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-fragrances"] });
+      await queryClient.invalidateQueries({ queryKey: ["fragrances"] });
+      toast({ title: "Fragrância removida" });
+    },
+    onError: (error) => showErrorToast("Falha ao remover fragrância", error)
   });
 
   const filteredProducts = (productsQuery.data ?? []).filter((product) =>
@@ -117,6 +151,13 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
             className="w-full justify-start"
           >
             Configurações
+          </Button>
+          <Button
+            variant={tab === "fragrances" ? "primary" : "ghost"}
+            onClick={() => setTab("fragrances")}
+            className="w-full justify-start"
+          >
+            Fragrâncias
           </Button>
         </aside>
 
@@ -203,8 +244,98 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
               />
             </div>
           </div>
+        ) : tab === "fragrances" ? (
+          <AdminFragrances
+            fragrances={fragrancesQuery.data ?? []}
+            onCreate={(name) => createFragranceMutation.mutate(name)}
+            onToggle={(fragrance) =>
+              updateFragranceMutation.mutate({
+                id: fragrance.id,
+                values: { active: !fragrance.active }
+              })
+            }
+            onRemove={(id) => deleteFragranceMutation.mutate(id)}
+            loading={
+              fragrancesQuery.isLoading ||
+              createFragranceMutation.isPending ||
+              updateFragranceMutation.isPending ||
+              deleteFragranceMutation.isPending
+            }
+          />
         ) : (
           <AdminSettings />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminFragrances({
+  fragrances,
+  onCreate,
+  onToggle,
+  onRemove,
+  loading
+}: {
+  fragrances: Fragrance[];
+  onCreate: (name: string) => void;
+  onToggle: (fragrance: Fragrance) => void;
+  onRemove: (id: string) => void;
+  loading: boolean;
+}) {
+  const [name, setName] = React.useState("");
+
+  return (
+    <div className="glass-panel p-6">
+      <h2 className="font-serif text-2xl text-ink-900">Fragrâncias globais</h2>
+      <p className="text-sm text-ink-600">
+        As fragrâncias cadastradas aqui aparecem automaticamente em todos os produtos.
+      </p>
+
+      <form
+        className="mt-4 flex flex-wrap gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const next = name.trim();
+          if (!next) return;
+          onCreate(next);
+          setName("");
+        }}
+      >
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Nova fragrância"
+          className="max-w-sm"
+        />
+        <Button type="submit" disabled={loading}>
+          Adicionar
+        </Button>
+      </form>
+
+      <div className="mt-6 space-y-3">
+        {fragrances.length ? (
+          fragrances.map((fragrance) => (
+            <div
+              key={fragrance.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sand-200/70 bg-white/80 p-3"
+            >
+              <div>
+                <p className="font-semibold text-ink-900">{fragrance.name}</p>
+                <p className="text-xs text-ink-500">{fragrance.active ? "Ativa" : "Inativa"}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onToggle(fragrance)} disabled={loading}>
+                  {fragrance.active ? "Desativar" : "Ativar"}
+                </Button>
+                <Button variant="ghost" onClick={() => onRemove(fragrance.id)} disabled={loading}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-ink-600">Nenhuma fragrância cadastrada.</p>
         )}
       </div>
     </div>

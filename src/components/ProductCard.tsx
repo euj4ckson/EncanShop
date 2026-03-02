@@ -1,32 +1,13 @@
-﻿import { ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { PrefetchLink } from "@/routes/PrefetchLink";
-import { useCart } from "@/store/cart";
-import { useToast } from "@/components/ui/Toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency, clampText } from "@/lib/utils";
 import type { Product } from "@/types/product";
 
 export function ProductCard({ product }: { product: Product }) {
-  const { addItem } = useCart();
-  const { toast } = useToast();
   const variants = (product.variants ?? []).map((item) => item.trim()).filter(Boolean);
   const hasVariants = variants.length > 0;
-
-  const handleAdd = () => {
-    addItem({
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.images[0],
-      quantity: 1
-    });
-    toast({
-      title: "Adicionado ao carrinho",
-      description: product.name,
-      variant: "success"
-    });
-  };
 
   return (
     <div className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-sand-200/70 bg-white/80 shadow-card transition duration-300 hover:-translate-y-1 hover:shadow-soft">
@@ -74,21 +55,15 @@ export function ProductCard({ product }: { product: Product }) {
           <span className="text-lg font-semibold text-ink-900">
             {formatCurrency(product.price)}
           </span>
-          {hasVariants ? (
-            <Button asChild size="sm" variant="outline" disabled={!product.inStock}>
-              <PrefetchLink to={`/produto/${product.id}`}>
-                <ShoppingBag className="h-4 w-4" />
-                {product.inStock ? "Escolher cor" : "Indisponível"}
-              </PrefetchLink>
-            </Button>
-          ) : (
-            <Button size="sm" onClick={handleAdd} disabled={!product.inStock}>
+          <Button asChild size="sm" variant="outline" disabled={!product.inStock}>
+            <PrefetchLink to={`/produto/${product.id}`}>
               <ShoppingBag className="h-4 w-4" />
-              {product.inStock ? "Adicionar" : "Indisponível"}
-            </Button>
-          )}
+              {product.inStock ? (hasVariants ? "Escolher opções" : "Ver detalhes") : "Indisponível"}
+            </PrefetchLink>
+          </Button>
         </div>
       </div>
     </div>
   );
 }
+

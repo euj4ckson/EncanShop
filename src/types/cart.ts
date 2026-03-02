@@ -4,6 +4,7 @@
   price: number;
   image?: string;
   variant?: string;
+  fragrance?: string;
   quantity: number;
 };
 

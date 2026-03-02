@@ -1,9 +1,6 @@
-﻿import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ProductCard } from "@/components/ProductCard";
-import { CartProvider, useCart } from "@/store/cart";
-import { ToastProvider } from "@/components/ui/Toast";
 import type { Product } from "@/types/product";
 
 const product: Product = {
@@ -20,29 +17,16 @@ const product: Product = {
   updatedAt: "2026-01-01T00:00:00.000Z"
 };
 
-function CartCount() {
-  const { totalItems } = useCart();
-  return <span data-testid="count">{totalItems}</span>;
-}
-
 describe("ProductCard", () => {
-  it("adds item to cart", async () => {
-    window.localStorage.clear();
-    const user = userEvent.setup();
-
+  it("renders link to product detail", () => {
     render(
       <MemoryRouter>
-        <CartProvider>
-          <ToastProvider>
-            <ProductCard product={product} />
-            <CartCount />
-          </ToastProvider>
-        </CartProvider>
+        <ProductCard product={product} />
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("count")).toHaveTextContent("0");
-    await user.click(screen.getByRole("button", { name: /adicionar/i }));
-    expect(screen.getByTestId("count")).toHaveTextContent("1");
+    const detailLink = screen.getByRole("link", { name: /ver detalhes/i });
+    expect(detailLink).toHaveAttribute("href", "/produto/1");
   });
 });
+
