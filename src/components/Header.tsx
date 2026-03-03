@@ -4,7 +4,7 @@ import { useCart } from "@/store/cart";
 import { CartBadge } from "@/components/CartBadge";
 import { useContacts } from "@/services/useContacts";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
-import logo from "@/assets/logo.svg";
+import logoNavbarOfficial from "@/assets/logo-navbar-official.svg";
 
 export function Header() {
   const { totalItems } = useCart();
@@ -21,9 +21,9 @@ export function Header() {
         <PrefetchLink to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <div className="relative">
             <img
-              src={logo}
+              src={logoNavbarOfficial}
               alt="EncantArtes"
-              className="h-11 w-11 rounded-2xl ring-1 ring-white/70 shadow-soft"
+              className="h-11 w-11 rounded-xl bg-white/95 p-1.5 ring-1 ring-sand-200/90 shadow-soft object-contain"
             />
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-gold-500 ring-2 ring-sand-50" />
           </div>
