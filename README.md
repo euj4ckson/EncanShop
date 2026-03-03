@@ -99,7 +99,10 @@ SMTP_SECURE="true"
 SMTP_USER="seuemail@gmail.com"
 SMTP_PASS="sua-app-password-do-gmail"
 SMTP_FROM="EncantArtes <seuemail@gmail.com>" # opcional; se vazio, usa SMTP_USER
-# aliases tambem aceitos: EMAIL_HOST/PORT/SECURE/USER/PASS/FROM, MAIL_HOST/PORT/SECURE/USER/PASS/FROM, SMTP_USERNAME/SMTP_PASSWORD
+# aliases tambem aceitos:
+# USER: SMTP_USERNAME, SMTP_EMAIL, SMTP_LOGIN, EMAIL_USER, EMAIL, EMAIL_LOGIN, EMAIL_ADDRESS, MAIL_USER, MAIL_LOGIN, MAIL_ADDRESS, MAIL_USERNAME
+# PASS: SMTP_PASSWORD, SMTP_SENHA, SMTP_SECRET, EMAIL_PASS, EMAIL_PASSWORD, EMAIL_SECRET, SENHA_EMAIL, SENHA, MAIL_PASS, MAIL_PASSWORD, MAIL_SECRET, PASSWORD, PASS
+# FROM: GMAIL_FROM_EMAIL, EMAIL_FROM, FROM_EMAIL, FROM, MAIL_FROM, MAIL_FROM_EMAIL
 ```
 
 Observacoes de seguranca:
@@ -112,6 +115,7 @@ Observacoes de seguranca:
 - Para Gmail SMTP, use App Password (conta com verificacao em 2 etapas).
 - O sistema prioriza envio ao cliente e depois ao admin, com pequeno intervalo para reduzir rate-limit.
 - Se `SMTP_FROM` estiver invalido ou em `resend.dev`, o backend normaliza para o `SMTP_USER` automaticamente.
+- Se `ORDER_EMAIL_FROM` estiver em `resend.dev`, destinatario de cliente externo nao usa fallback para Resend (evita erro mascarado e garante diagnostico real do SMTP).
 - Em caso de falha no envio, o erro da API agora inclui mais detalhe (ex.: `http-403:...`) para diagnostico rapido.
 - Falhas de envio agora sao registradas nos logs da funcao serverless (`[email] ...`) para diagnostico no painel da Vercel.
 

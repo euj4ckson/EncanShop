@@ -838,10 +838,12 @@ function AdminSettings() {
       const variant = response.ok ? "success" : "error";
       const failure = response.results.find((item) => !item.customerSent || !item.adminSent);
       const needsSmtpHint =
-        failure?.customerProvider === "resend" &&
-        String(failure.customerError || "").includes("http-403");
+        String(failure?.customerError || "").includes("http-403") ||
+        String(failure?.customerError || "").includes("resend-sandbox-blocked-external-recipient") ||
+        String(failure?.customerError || "").toLowerCase().includes("invalid login") ||
+        String(failure?.customerError || "").toLowerCase().includes("authentication");
       const recommendation = needsSmtpHint
-        ? " Configure SMTP_USER/SMTP_PASS (ou EMAIL_USER/EMAIL_PASS) para envio ao cliente."
+        ? " Configure SMTP_USER/SMTP_PASS (ou EMAIL/EMAIL_PASSWORD) com App Password do Gmail e mantenha ORDER_EMAIL_FROM em onboarding@resend.dev apenas para admin/teste."
         : "";
       const failureHint = failure
         ? ` Falha em ${failure.stage}: cliente=${failure.customerError || "ok"} (${failure.customerProvider || "n/a"}) admin=${failure.adminError || "ok"} (${failure.adminProvider || "n/a"}).${recommendation}`

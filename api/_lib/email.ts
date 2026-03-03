@@ -114,13 +114,33 @@ function getEmailConfig(): EmailConfig {
     "VITE_ORDER_EMAIL_FROM",
     "VITE_RESEND_FROM_EMAIL"
   );
-  const smtpPortRaw = firstEnv("SMTP_PORT", "GMAIL_SMTP_PORT", "EMAIL_PORT", "MAIL_PORT");
-  const smtpUser = firstEnv("SMTP_USER", "GMAIL_USER", "SMTP_USERNAME", "EMAIL_USER", "MAIL_USER");
+  const smtpPortRaw = firstEnv(
+    "SMTP_PORT",
+    "GMAIL_SMTP_PORT",
+    "EMAIL_PORT",
+    "MAIL_PORT",
+    "EMAIL_SMTP_PORT"
+  );
+  const smtpUser = firstEnv(
+    "SMTP_USER",
+    "GMAIL_USER",
+    "SMTP_USERNAME",
+    "SMTP_EMAIL",
+    "SMTP_LOGIN",
+    "EMAIL_USER",
+    "EMAIL",
+    "EMAIL_LOGIN",
+    "EMAIL_ADDRESS",
+    "MAIL_USER",
+    "MAIL_LOGIN",
+    "MAIL_ADDRESS",
+    "MAIL_USERNAME"
+  );
   const smtpPort = Number(smtpPortRaw || "465");
   const normalizedSmtpPort = Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
   const smtpSecureDefault = normalizedSmtpPort === 465;
   const smtpSecure = parseBoolean(
-    firstEnv("SMTP_SECURE", "GMAIL_SMTP_SECURE", "EMAIL_SECURE", "MAIL_SECURE"),
+    firstEnv("SMTP_SECURE", "GMAIL_SMTP_SECURE", "EMAIL_SECURE", "MAIL_SECURE", "EMAIL_SMTP_SECURE"),
     smtpSecureDefault
   );
   const rejectUnauthorized = parseBoolean(
@@ -134,11 +154,42 @@ function getEmailConfig(): EmailConfig {
       from: resendFrom
     },
     smtp: {
-      host: firstEnv("SMTP_HOST", "GMAIL_SMTP_HOST", "EMAIL_HOST", "MAIL_HOST") || "smtp.gmail.com",
+      host:
+        firstEnv("SMTP_HOST", "GMAIL_SMTP_HOST", "EMAIL_HOST", "MAIL_HOST", "EMAIL_SMTP_HOST") ||
+        "smtp.gmail.com",
       port: normalizedSmtpPort,
       user: smtpUser,
-      pass: firstEnv("SMTP_PASS", "GMAIL_APP_PASSWORD", "SMTP_PASSWORD", "EMAIL_PASS", "MAIL_PASS"),
-      from: firstEnv("SMTP_FROM", "GMAIL_FROM_EMAIL", "EMAIL_FROM", "MAIL_FROM") || smtpUser || resendFrom,
+      pass: firstEnv(
+        "SMTP_PASS",
+        "GMAIL_APP_PASSWORD",
+        "SMTP_PASSWORD",
+        "SMTP_SENHA",
+        "SMTP_SECRET",
+        "EMAIL_PASS",
+        "EMAIL_PASSWORD",
+        "EMAIL_SECRET",
+        "SENHA_EMAIL",
+        "SENHA",
+        "MAIL_PASS",
+        "MAIL_PASSWORD",
+        "MAIL_SECRET",
+        "PASSWORD",
+        "PASS"
+      ),
+      from:
+        firstEnv(
+          "SMTP_FROM",
+          "GMAIL_FROM_EMAIL",
+          "EMAIL_FROM",
+          "FROM_EMAIL",
+          "FROM",
+          "EMAIL_ADDRESS",
+          "MAIL_FROM",
+          "MAIL_FROM_EMAIL",
+          "SMTP_EMAIL"
+        ) ||
+        smtpUser ||
+        resendFrom,
       secure: smtpSecure,
       rejectUnauthorized
     },
@@ -197,6 +248,21 @@ function resolveSmtpFrom(config: EmailConfig): string {
 function isSharedProviderFromAddress(from: string): boolean {
   const domain = getEmailDomain(from);
   return SHARED_EMAIL_DOMAINS.has(domain);
+}
+
+function areAdminRecipientsOnly(recipients: string[], adminTo: string): boolean {
+  const admin = extractEmailAddress(adminTo);
+  if (!admin) return false;
+  return recipients.every((recipient) => extractEmailAddress(recipient) === admin);
+}
+
+function combineDeliveryErrors(input: { smtp?: string; resend?: string; fallback?: string }): string {
+  const parts = [
+    input.smtp ? `smtp:${input.smtp}` : "",
+    input.resend ? `resend:${input.resend}` : "",
+    input.fallback || ""
+  ].filter(Boolean);
+  return parts.join(" | ");
 }
 
 async function sendViaResend(input: {
@@ -392,20 +458,23 @@ async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDelivery
   const canUseResend = hasResendConfig(config);
   const canUseSmtp = hasSmtpConfig(config);
   const preferSmtp = canUseSmtp && isResendSandboxFromAddress(config.resend.from);
+  const resendSandbox = isResendSandboxFromAddress(config.resend.from);
+  const recipientsAreAdminOnly = areAdminRecipientsOnly(recipients, config.adminTo);
+  let smtpFirstAttempt: SendAttempt | null = null;
 
-  if (!canUseSmtp && canUseResend && isResendSandboxFromAddress(config.resend.from)) {
+  if (!canUseSmtp && canUseResend && resendSandbox) {
     console.warn(
       "[email] ORDER_EMAIL_FROM usa resend.dev sem SMTP configurado. Destinatarios externos podem falhar."
     );
   }
 
   if (preferSmtp) {
-    const smtpAttempt = await sendViaSmtp({
+    smtpFirstAttempt = await sendViaSmtp({
       config,
       recipients,
       payload
     });
-    if (smtpAttempt.ok) {
+    if (smtpFirstAttempt.ok) {
       return {
         ok: true,
         provider: "smtp",
@@ -413,8 +482,23 @@ async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDelivery
         recipients
       };
     }
+
+    const canTryResendFallback = canUseResend && (!resendSandbox || recipientsAreAdminOnly);
+    if (!canTryResendFallback) {
+      return {
+        ok: false,
+        provider: "smtp",
+        error:
+          smtpFirstAttempt.error
+            ? `${smtpFirstAttempt.error} | resend-sandbox-blocked-external-recipient`
+            : "smtp-failed | resend-sandbox-blocked-external-recipient",
+        subject: payload.subject,
+        recipients
+      };
+    }
+
     console.warn(
-      `[email] SMTP falhou (${smtpAttempt.error || "erro desconhecido"}). Tentando Resend como fallback.`
+      `[email] SMTP falhou (${smtpFirstAttempt.error || "erro desconhecido"}). Tentando Resend como fallback.`
     );
   }
 
@@ -458,7 +542,11 @@ async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDelivery
     return {
       ok: false,
       provider: "smtp",
-      error: smtpAttempt.error || resendAttempt?.error || "smtp-failed",
+      error: combineDeliveryErrors({
+        smtp: smtpAttempt.error,
+        resend: resendAttempt?.error,
+        fallback: "smtp-failed"
+      }),
       subject: payload.subject,
       recipients
     };
@@ -472,6 +560,20 @@ async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDelivery
       ok: false,
       provider: "none",
       error: "config-missing",
+      subject: payload.subject,
+      recipients
+    };
+  }
+
+  if (preferSmtp && smtpFirstAttempt) {
+    return {
+      ok: false,
+      provider: "smtp",
+      error: combineDeliveryErrors({
+        smtp: smtpFirstAttempt.error,
+        resend: resendAttempt?.error,
+        fallback: "delivery-failed"
+      }),
       subject: payload.subject,
       recipients
     };
