@@ -319,22 +319,46 @@ export function Cart() {
   }, [appliedCoupon?.code, applyCoupon, shippingQuote?.amount, subtotal]);
 
   React.useEffect(() => {
-    if (!returnOrderId || !customer.isAuthed) return;
+    if (!returnOrderId) {
+      setIsLoadingReturnOrder(false);
+      return;
+    }
+    if (customer.isLoading) {
+      setIsLoadingReturnOrder(true);
+      return;
+    }
+    if (!customer.isAuthed) {
+      setIsLoadingReturnOrder(false);
+      return;
+    }
+
+    let isMounted = true;
     setIsLoadingReturnOrder(true);
     void (async () => {
       try {
-        const order = await OrderRepo.getById(returnOrderId);
+        const order = await Promise.race<Order | null>([
+          OrderRepo.getById(returnOrderId),
+          new Promise<Order | null>((_, reject) => {
+            window.setTimeout(() => reject(new Error("Timeout ao carregar pedido.")), 8000);
+          })
+        ]);
         if (order) {
-          setLastOrder(order);
-          clear();
+          if (isMounted) {
+            setLastOrder(order);
+          }
         }
       } catch {
         // Ignore background sync failures on return page.
       } finally {
-        setIsLoadingReturnOrder(false);
+        if (isMounted) {
+          setIsLoadingReturnOrder(false);
+        }
       }
     })();
-  }, [clear, customer.isAuthed, returnOrderId]);
+    return () => {
+      isMounted = false;
+    };
+  }, [customer.isAuthed, customer.isLoading, returnOrderId]);
 
   React.useEffect(() => {
     if (!lastOrder || lastOrder.status !== "pending_payment") return;
@@ -452,21 +476,25 @@ export function Cart() {
     return (
       <div className="section-shell pb-12 pt-28">
         <div className="mx-auto max-w-lg text-left">
-          {isLoadingReturnOrder ? (
+          {lastOrder ? (
+            <LastOrderCard order={lastOrder} whatsappLink={lastOrderWhatsappLink} />
+          ) : isLoadingReturnOrder || customer.isLoading ? (
             <div className="glass-panel p-6">
               <p className="text-sm text-ink-600">Carregando detalhes do pedido...</p>
             </div>
-          ) : lastOrder ? (
-            <LastOrderCard order={lastOrder} whatsappLink={lastOrderWhatsappLink} />
           ) : (
             <div className="glass-panel p-6">
-              <p className="text-sm text-ink-700">Nao foi possivel carregar seu ultimo pedido.</p>
-              <PrefetchLink
-                to="/conta"
-                className="mt-3 inline-flex rounded-full border border-sand-200/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-600 transition hover:bg-white"
-              >
-                Ir para Minha conta
-              </PrefetchLink>
+              <p className="text-sm text-ink-700">
+                Nao foi possivel carregar seu ultimo pedido. Entre em sua conta e tente novamente.
+              </p>
+              {!customer.isAuthed ? (
+                <PrefetchLink
+                  to="/conta"
+                  className="mt-3 inline-flex rounded-full border border-sand-200/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-600 transition hover:bg-white"
+                >
+                  Entrar na conta
+                </PrefetchLink>
+              ) : null}
             </div>
           )}
         </div>
