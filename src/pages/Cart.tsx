@@ -114,7 +114,7 @@ function LastOrderCard({
           <img
             src={paymentConfirmedCandle}
             alt="Ilustracao de vela com pagamento confirmado"
-            className="mx-auto h-auto w-full max-w-[280px] object-contain"
+            className="mx-auto h-auto w-full max-w-[220px] object-contain"
             loading="lazy"
           />
           <p className="mt-2">
@@ -159,6 +159,10 @@ export function Cart() {
   const { items, subtotal, updateQuantity, removeItem, getItemKey, clear } = useCart();
   const { data: contacts } = useContacts();
   const customer = useCustomer();
+  const returnParams = React.useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const returnOrderId = returnParams.get("order_id");
+  const paymentReturnStatus = returnParams.get("payment_return");
+  const hasPostPaymentContext = Boolean(returnOrderId || paymentReturnStatus);
   const [address, setAddress] = React.useState<AddressDraft>(emptyAddress);
   const [selectedAddressId, setSelectedAddressId] = React.useState("");
   const [shippingQuote, setShippingQuote] = React.useState<ShippingQuote | null>(null);
@@ -171,6 +175,7 @@ export function Cart() {
   const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [lastOrder, setLastOrder] = React.useState<Order | null>(null);
+  const [isLoadingReturnOrder, setIsLoadingReturnOrder] = React.useState(false);
 
   const whatsappLink = buildWhatsAppLink(
     contacts?.whatsapp || "553291109045",
@@ -314,20 +319,22 @@ export function Cart() {
   }, [appliedCoupon?.code, applyCoupon, shippingQuote?.amount, subtotal]);
 
   React.useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const orderId = params.get("order_id");
-    if (!orderId || !customer.isAuthed) return;
+    if (!returnOrderId || !customer.isAuthed) return;
+    setIsLoadingReturnOrder(true);
     void (async () => {
       try {
-        const order = await OrderRepo.getById(orderId);
+        const order = await OrderRepo.getById(returnOrderId);
         if (order) {
           setLastOrder(order);
+          clear();
         }
       } catch {
         // Ignore background sync failures on return page.
+      } finally {
+        setIsLoadingReturnOrder(false);
       }
     })();
-  }, [customer.isAuthed, location.search]);
+  }, [clear, customer.isAuthed, returnOrderId]);
 
   React.useEffect(() => {
     if (!lastOrder || lastOrder.status !== "pending_payment") return;
@@ -440,6 +447,32 @@ export function Cart() {
       setIsSubmitting(false);
     }
   };
+
+  if (hasPostPaymentContext) {
+    return (
+      <div className="section-shell pb-12 pt-28">
+        <div className="mx-auto max-w-lg text-left">
+          {isLoadingReturnOrder ? (
+            <div className="glass-panel p-6">
+              <p className="text-sm text-ink-600">Carregando detalhes do pedido...</p>
+            </div>
+          ) : lastOrder ? (
+            <LastOrderCard order={lastOrder} whatsappLink={lastOrderWhatsappLink} />
+          ) : (
+            <div className="glass-panel p-6">
+              <p className="text-sm text-ink-700">Nao foi possivel carregar seu ultimo pedido.</p>
+              <PrefetchLink
+                to="/conta"
+                className="mt-3 inline-flex rounded-full border border-sand-200/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-600 transition hover:bg-white"
+              >
+                Ir para Minha conta
+              </PrefetchLink>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

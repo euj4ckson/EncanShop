@@ -1,18 +1,21 @@
-<svg width="560" height="320" viewBox="0 0 560 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="72" y="30" width="416" height="260" rx="30" fill="#F4ECE0" />
-  <ellipse cx="242" cy="242" rx="86" ry="14" fill="#E4D5C0" />
+<svg width="560" height="260" viewBox="0 0 560 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(190 22)">
+    <g stroke="#141414" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90 12C58 44 58 79 90 106C122 79 122 44 90 12Z" />
+      <path d="M90 40C75 58 75 77 90 90C105 77 105 58 90 40Z" />
+      <path d="M90 90V103" />
+      <rect x="54" y="103" width="72" height="92" rx="9" />
+    </g>
 
-  <path d="M242 78C255 96 255 113 242 126C229 113 229 96 242 78Z" fill="#F4A34D" />
-  <path d="M242 92C249 103 249 113 242 120C235 113 235 103 242 92Z" fill="#FFD9A3" />
-  <rect x="238" y="122" width="8" height="15" rx="4" fill="#8D5A2C" />
-
-  <rect x="198" y="136" width="88" height="98" rx="22" fill="#FFFFFF" stroke="#D8C4A7" stroke-width="4" />
-  <rect x="214" y="154" width="56" height="44" rx="13" fill="#F5EBDD" />
-
-  <circle cx="356" cy="132" r="36" fill="#2F7E4F" />
-  <path d="M340 132L352 144L374 120" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
-
-  <path d="M170 108L175 118H186L177 124L181 134L170 127L159 134L163 124L154 118H165L170 108Z" fill="#111111" />
-  <path d="M318 92L322 99H330L324 104L327 111L318 106L309 111L312 104L306 99H314L318 92Z" fill="#111111" />
-  <circle cx="334" cy="197" r="4" fill="#111111" />
+    <g fill="#141414">
+      <path d="M12 90L17 101H29L19.5 107L23 118L12 111L1 118L4.5 107L-5 101H7L12 90Z" />
+      <path d="M36 56L40 64H49L41.5 69.5L44.5 78L36 72.5L27.5 78L30.5 69.5L23 64H32L36 56Z" />
+      <path d="M146 52L150 60H159L151.5 65.5L154.5 74L146 68.5L137.5 74L140.5 65.5L133 60H142L146 52Z" />
+      <path d="M170 87L175 98H187L177.5 104L181 115L170 108L159 115L162.5 104L153 98H165L170 87Z" />
+      <rect x="10" y="132" width="5" height="18" rx="2.5" />
+      <rect x="163" y="131" width="5" height="18" rx="2.5" />
+      <circle cx="40" cy="137" r="3.5" />
+      <circle cx="139" cy="147" r="3.5" />
+    </g>
+  </g>
 </svg>

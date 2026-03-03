@@ -23,7 +23,7 @@ export function Header() {
             <img
               src={logoNavbarOfficial}
               alt="EncantArtes"
-              className="h-11 w-11 rounded-xl bg-white/95 p-1.5 ring-1 ring-sand-200/90 shadow-soft object-contain"
+              className="h-11 w-11 rounded-xl bg-transparent p-0.5 ring-1 ring-sand-200/70 shadow-soft object-contain"
             />
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-gold-500 ring-2 ring-sand-50" />
           </div>
