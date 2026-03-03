@@ -109,6 +109,8 @@ Observacoes de seguranca:
 - Se estiver usando `onboarding@resend.dev`, o Resend limita destinatarios; para cliente final, configure `SMTP_*` (fallback automatico).
 - Sem dominio proprio no Resend, o sistema pode usar fallback SMTP automaticamente quando `SMTP_*` estiver configurado.
 - Para Gmail SMTP, use App Password (conta com verificacao em 2 etapas).
+- O sistema prioriza envio ao cliente e depois ao admin, com pequeno intervalo para reduzir rate-limit.
+- Se `SMTP_FROM` estiver invalido ou em `resend.dev`, o backend normaliza para o `SMTP_USER` automaticamente.
 - Falhas de envio agora sao registradas nos logs da funcao serverless (`[email] ...`) para diagnostico no painel da Vercel.
 
 4. Faca um novo deploy.
@@ -138,6 +140,7 @@ Fluxos suportados:
   - inclui atualizacao de telefone de contato do cliente
 - `/api/admin-email-test` (teste de notificacoes por e-mail, protegido por senha admin)
   - usa o mesmo template visual e os mesmos assuntos das rotinas reais de envio
+  - retorna diagnostico por etapa (provider e erro de cliente/admin) quando houver falha
 - `/api/shipping` (calculo de frete por CEP)
 - `/api/orders` (criacao, consulta, cancelamento, retomada de pagamento, atualizacao/exclusao admin e rastreio)
 - `/api/fragrances` (fragrancias globais)

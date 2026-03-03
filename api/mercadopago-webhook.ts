@@ -1,5 +1,5 @@
 import { json, pickFirstString } from "./_lib/http.js";
-import { getAdminEmail, sendEmail } from "./_lib/email.js";
+import { getAdminEmail, sendCustomerAdminPair } from "./_lib/email.js";
 import {
   getPaymentById,
   mapPaymentToOrderStatus,
@@ -16,20 +16,26 @@ async function notifyStatusChange(orderId: string) {
 
   const customerEmail = buildOrderEmail(order, "customer");
   const adminEmail = buildOrderEmail(order, "admin");
-  await Promise.allSettled([
-    sendEmail({
+  const result = await sendCustomerAdminPair({
+    customer: {
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
       html: customerEmail.html,
       text: customerEmail.text
-    }),
-    sendEmail({
+    },
+    admin: {
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
       html: adminEmail.html,
       text: adminEmail.text
-    })
-  ]);
+    }
+  });
+  if (!result.customer.ok) {
+    console.error(`[email] Cliente nao recebeu atualizacao via webhook do pedido ${order.id}.`);
+  }
+  if (!result.admin.ok) {
+    console.error(`[email] Admin nao recebeu atualizacao via webhook do pedido ${order.id}.`);
+  }
 }
 
 export default async function handler(req: any, res: any) {

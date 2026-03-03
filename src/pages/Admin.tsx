@@ -810,7 +810,7 @@ function AdminSettings() {
   const { toast } = useToast();
   const [whatsapp, setWhatsapp] = React.useState(formatPhoneBR(data?.whatsapp ?? ""));
   const [instagram, setInstagram] = React.useState(data?.instagram ?? "");
-  const [testCustomerEmail, setTestCustomerEmail] = React.useState("");
+  const [testCustomerEmail, setTestCustomerEmail] = React.useState("bersantos2014@gmail.com");
   const [testCustomerName, setTestCustomerName] = React.useState("Cliente Teste");
 
   React.useEffect(() => {
@@ -836,14 +836,16 @@ function AdminSettings() {
     onSuccess: (response) => {
       const failedCount = response.attempts - response.successCount;
       const variant = response.ok ? "success" : "error";
+      const failure = response.results.find((item) => !item.customerSent || !item.adminSent);
+      const failureHint = failure
+        ? ` Falha em ${failure.stage}: cliente=${failure.customerError || "ok"} (${failure.customerProvider || "n/a"}) admin=${failure.adminError || "ok"} (${failure.adminProvider || "n/a"}).`
+        : "";
       toast({
         title: response.ok ? "Teste de e-mail enviado" : "Teste de e-mail com falhas",
-        description: `${response.successCount}/${response.attempts} envios concluidos. Admin: ${response.adminEmail}. Cliente teste: ${response.customerEmail}.`,
+        description: `${response.successCount}/${response.attempts} envios concluidos. Admin: ${response.adminEmail}. Cliente teste: ${response.customerEmail}.${failureHint}`,
         variant
       });
-      if (failedCount === 0) {
-        setTestCustomerEmail("");
-      }
+      if (failedCount === 0) return;
     },
     onError: (error) => {
       toast({

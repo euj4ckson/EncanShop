@@ -1,6 +1,6 @@
 import type { Order, OrderStatus, PaymentStatus } from "../src/types/order";
 import type { Address } from "../src/types/customer";
-import { getAdminEmail, sendEmail } from "./_lib/email.js";
+import { getAdminEmail, sendEmailDetailed, type EmailDeliveryResult } from "./_lib/email.js";
 import { json, normalizeEmail, readHeader, readJsonBody } from "./_lib/http.js";
 import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
 
@@ -10,6 +10,10 @@ type StageResult = {
   stage: TestStage;
   customerSent: boolean;
   adminSent: boolean;
+  customerProvider?: string;
+  customerError?: string;
+  adminProvider?: string;
+  adminError?: string;
 };
 
 type TestPayload = {
@@ -24,7 +28,7 @@ type SendEmailPayload = {
   text?: string;
 };
 
-type SendWithThrottle = (payload: SendEmailPayload) => Promise<boolean>;
+type SendWithThrottle = (payload: SendEmailPayload) => Promise<EmailDeliveryResult>;
 
 const EMAIL_SEND_MIN_INTERVAL_MS = 650;
 
@@ -131,7 +135,7 @@ function createThrottledSender(minIntervalMs: number): SendWithThrottle {
     if (waitMs > 0) {
       await sleep(waitMs);
     }
-    const sent = await sendEmail(payload);
+    const sent = await sendEmailDetailed(payload);
     lastSentAt = Date.now();
     return sent;
   };
@@ -162,8 +166,12 @@ async function sendStageEmail(input: {
 
   return {
     stage: input.stage,
-    customerSent,
-    adminSent
+    customerSent: customerSent.ok,
+    adminSent: adminSent.ok,
+    customerProvider: customerSent.provider,
+    customerError: customerSent.error,
+    adminProvider: adminSent.provider,
+    adminError: adminSent.error
   };
 }
 

@@ -11,7 +11,7 @@ import {
   readJsonBody
 } from "./_lib/http.js";
 import { requireAuthedCustomer } from "./_lib/customerAuth.js";
-import { getAdminEmail, sendEmail } from "./_lib/email.js";
+import { getAdminEmail, sendCustomerAdminPair } from "./_lib/email.js";
 import {
   cancelPaymentById,
   createCardPreference,
@@ -163,39 +163,51 @@ function withCustomerPhoneFallback(orders: Order[], customers: Array<{ id: strin
 async function sendOrderNotifications(order: Order): Promise<void> {
   const customerEmail = buildOrderEmail(order, "customer");
   const adminEmail = buildOrderEmail(order, "admin");
-  await Promise.allSettled([
-    sendEmail({
+  const result = await sendCustomerAdminPair({
+    customer: {
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
       html: customerEmail.html,
       text: customerEmail.text
-    }),
-    sendEmail({
+    },
+    admin: {
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
       html: adminEmail.html,
       text: adminEmail.text
-    })
-  ]);
+    }
+  });
+  if (!result.customer.ok) {
+    console.error(`[email] Cliente nao recebeu notificacao de pedido ${order.id}.`);
+  }
+  if (!result.admin.ok) {
+    console.error(`[email] Admin nao recebeu notificacao de pedido ${order.id}.`);
+  }
 }
 
 async function sendOrderStatusNotifications(order: Order): Promise<void> {
   const customerEmail = buildOrderEmail(order, "customer");
   const adminEmail = buildOrderEmail(order, "admin");
-  await Promise.allSettled([
-    sendEmail({
+  const result = await sendCustomerAdminPair({
+    customer: {
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
       html: customerEmail.html,
       text: customerEmail.text
-    }),
-    sendEmail({
+    },
+    admin: {
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
       html: adminEmail.html,
       text: adminEmail.text
-    })
-  ]);
+    }
+  });
+  if (!result.customer.ok) {
+    console.error(`[email] Cliente nao recebeu atualizacao de status do pedido ${order.id}.`);
+  }
+  if (!result.admin.ok) {
+    console.error(`[email] Admin nao recebeu atualizacao de status do pedido ${order.id}.`);
+  }
 }
 
 async function cancelOrderWithPayment(

@@ -13,6 +13,10 @@ export type AdminEmailTestResult = {
   stage: AdminEmailTestStage;
   customerSent: boolean;
   adminSent: boolean;
+  customerProvider?: string;
+  customerError?: string;
+  adminProvider?: string;
+  adminError?: string;
 };
 
 export type AdminEmailTestResponse = {

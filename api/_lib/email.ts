@@ -30,6 +30,14 @@ type SendAttempt = {
   error?: string;
 };
 
+export type EmailDeliveryResult = {
+  ok: boolean;
+  provider: "resend" | "smtp" | "none";
+  error?: string;
+  subject: string;
+  recipients: string[];
+};
+
 const RATE_LIMIT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 800;
 const SHARED_EMAIL_DOMAINS = new Set([
@@ -41,6 +49,8 @@ const SHARED_EMAIL_DOMAINS = new Set([
   "icloud.com"
 ]);
 const RESEND_SANDBOX_DOMAIN = "resend.dev";
+const DEFAULT_SMTP_FROM_NAME = "EncantArtes";
+const DEFAULT_PAIR_INTERVAL_MS = 750;
 
 let smtpTransporter: nodemailer.Transporter | null = null;
 let smtpTransportKey = "";
@@ -74,6 +84,10 @@ function getEmailDomain(value: string): string {
   const email = extractEmailAddress(value);
   const [, domain = ""] = email.split("@");
   return domain;
+}
+
+function isValidEmailAddress(value: string): boolean {
+  return value.includes("@") && value.split("@")[1].includes(".");
 }
 
 function parseRetryDelayMs(value: string | null, attempt: number): number {
@@ -143,6 +157,35 @@ function hasSmtpConfig(config: EmailConfig): boolean {
 
 function isResendSandboxFromAddress(from: string): boolean {
   return getEmailDomain(from) === RESEND_SANDBOX_DOMAIN;
+}
+
+function toDisplayFrom(name: string, email: string): string {
+  return `${name} <${email}>`;
+}
+
+function resolveSmtpFrom(config: EmailConfig): string {
+  const smtpUserEmail = extractEmailAddress(config.smtp.user || "");
+  const rawFrom = config.smtp.from || smtpUserEmail;
+  const fromEmail = extractEmailAddress(rawFrom);
+  const fromDomain = getEmailDomain(fromEmail);
+  const smtpUserDomain = getEmailDomain(smtpUserEmail);
+  const usesResendSandboxDomain = fromDomain === RESEND_SANDBOX_DOMAIN;
+  const domainMismatch =
+    Boolean(smtpUserDomain) &&
+    Boolean(fromDomain) &&
+    fromDomain !== smtpUserDomain;
+
+  if (!isValidEmailAddress(fromEmail) || usesResendSandboxDomain || domainMismatch) {
+    if (isValidEmailAddress(smtpUserEmail)) {
+      return toDisplayFrom(DEFAULT_SMTP_FROM_NAME, smtpUserEmail);
+    }
+    return rawFrom;
+  }
+
+  if (!rawFrom.includes("<")) {
+    return toDisplayFrom(DEFAULT_SMTP_FROM_NAME, fromEmail);
+  }
+  return rawFrom;
 }
 
 function isSharedProviderFromAddress(from: string): boolean {
@@ -289,8 +332,11 @@ async function sendViaSmtp(input: {
 
   try {
     const transporter = getSmtpTransporter(config);
+    const smtpFrom = resolveSmtpFrom(config);
+    const smtpReplyTo = extractEmailAddress(config.smtp.user || "");
     await transporter.sendMail({
-      from: config.smtp.from,
+      from: smtpFrom,
+      ...(isValidEmailAddress(smtpReplyTo) ? { replyTo: smtpReplyTo } : {}),
       to: recipients.join(", "),
       subject: payload.subject,
       html: payload.html,
@@ -313,12 +359,18 @@ async function sendViaSmtp(input: {
   }
 }
 
-export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
+async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDeliveryResult> {
   const config = getEmailConfig();
   const recipients = normalizeRecipients(payload.to);
   if (!recipients.length) {
     console.error("[email] Nenhum destinatario valido informado.");
-    return false;
+    return {
+      ok: false,
+      provider: "none",
+      error: "invalid-recipients",
+      subject: payload.subject,
+      recipients
+    };
   }
 
   const canUseResend = hasResendConfig(config);
@@ -337,7 +389,14 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
       recipients,
       payload
     });
-    if (smtpAttempt.ok) return true;
+    if (smtpAttempt.ok) {
+      return {
+        ok: true,
+        provider: "smtp",
+        subject: payload.subject,
+        recipients
+      };
+    }
     console.warn(
       `[email] SMTP falhou (${smtpAttempt.error || "erro desconhecido"}). Tentando Resend como fallback.`
     );
@@ -350,7 +409,14 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
       recipients,
       payload
     });
-    if (resendAttempt.ok) return true;
+    if (resendAttempt.ok) {
+      return {
+        ok: true,
+        provider: "resend",
+        subject: payload.subject,
+        recipients
+      };
+    }
 
     if (!preferSmtp) {
       console.warn(
@@ -365,16 +431,75 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
       recipients,
       payload
     });
-    if (smtpAttempt.ok) return true;
+    if (smtpAttempt.ok) {
+      return {
+        ok: true,
+        provider: "smtp",
+        subject: payload.subject,
+        recipients
+      };
+    }
+    return {
+      ok: false,
+      provider: canUseResend ? "resend" : "smtp",
+      error: smtpAttempt.error || resendAttempt?.error || "smtp-failed",
+      subject: payload.subject,
+      recipients
+    };
   }
 
   if (!canUseResend && !canUseSmtp) {
     console.error(
       "[email] Configuracao incompleta. Configure Resend (RESEND_API_KEY + ORDER_EMAIL_FROM) ou SMTP (SMTP_HOST/PORT/USER/PASS/FROM)."
     );
+    return {
+      ok: false,
+      provider: "none",
+      error: "config-missing",
+      subject: payload.subject,
+      recipients
+    };
   }
 
-  return false;
+  return {
+    ok: false,
+    provider: canUseSmtp ? "smtp" : "resend",
+    error: resendAttempt?.error || "delivery-failed",
+    subject: payload.subject,
+    recipients
+  };
+}
+
+export async function sendEmailDetailed(payload: SendEmailInput): Promise<EmailDeliveryResult> {
+  const result = await sendEmailInternal(payload);
+  if (!result.ok) {
+    console.error(
+      `[email] Entrega falhou. Provider=${result.provider} Subject="${result.subject}" To="${result.recipients.join(", ")}" Error=${result.error || "unknown"}`
+    );
+  }
+  return result;
+}
+
+export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
+  const result = await sendEmailDetailed(payload);
+  return result.ok;
+}
+
+export async function sendCustomerAdminPair(input: {
+  customer: SendEmailInput;
+  admin: SendEmailInput;
+  delayMs?: number;
+}): Promise<{ customer: EmailDeliveryResult; admin: EmailDeliveryResult }> {
+  const customerResult = await sendEmailDetailed(input.customer);
+  const delayMs = Math.max(0, input.delayMs ?? DEFAULT_PAIR_INTERVAL_MS);
+  if (delayMs > 0) {
+    await sleep(delayMs);
+  }
+  const adminResult = await sendEmailDetailed(input.admin);
+  return {
+    customer: customerResult,
+    admin: adminResult
+  };
 }
 
 export function getAdminEmail(): string {

@@ -21,6 +21,9 @@ type StageTheme = {
   symbol: string;
 };
 
+const BRAND_INSTAGRAM = "@_encarartes";
+const BRAND_PHONE = "(32) 99110-9045";
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -156,6 +159,24 @@ function buildOrderLabel(orderId: string): string {
   return token.replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
+function buildBrandLogoSvg(): string {
+  return `
+    <svg width="220" height="146" viewBox="0 0 220 146" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo EncantArtes">
+      <g fill="none" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M110 15C100 31 98 43 110 53C122 43 120 31 110 15Z" />
+        <path d="M110 33C106 41 106 47 110 51C114 47 114 41 110 33Z" />
+        <rect x="95" y="54" width="30" height="45" rx="5" />
+        <path d="M80 36L80 44M76 40L84 40" />
+        <path d="M140 36L140 44M136 40L144 40" />
+        <path d="M72 54L72 60M68 57L76 57" />
+        <path d="M148 54L148 60M144 57L152 57" />
+      </g>
+      <text x="110" y="122" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="28" fill="#111111">EncantArtes</text>
+      <text x="110" y="140" text-anchor="middle" font-family="Verdana, Arial, sans-serif" font-size="11" fill="#333333">${escapeHtml(BRAND_INSTAGRAM)} · ${escapeHtml(BRAND_PHONE)}</text>
+    </svg>
+  `;
+}
+
 function buildCandleIllustration(theme: StageTheme): string {
   const safeAccent = escapeHtml(theme.accentColor);
   const safeSoft = escapeHtml(theme.softColor);
@@ -248,16 +269,23 @@ export function buildOrderEmail(
   const safeTrackingCode = order.trackingCode ? escapeHtml(order.trackingCode) : "";
   const safeTrackingUrl = order.trackingUrl ? escapeHtml(order.trackingUrl) : "";
   const safeRoleLabel = audience === "admin" ? "Painel da loja" : "Atualizacao de compra";
+  const brandLogo = buildBrandLogoSvg();
   const illustration = buildCandleIllustration(theme);
+  const safeInstagram = escapeHtml(BRAND_INSTAGRAM);
+  const safePhone = escapeHtml(BRAND_PHONE);
 
   return {
     subject: audience === "admin" ? adminOrderEmailSubject(order) : customerOrderEmailSubject(order),
     html: `
-      <div style="margin:0;padding:24px;background:#F7F2EA;font-family:Verdana,Arial,sans-serif;color:#2A241E;">
-        <div style="max-width:620px;margin:0 auto;background:#FFFFFF;border:1px solid #E6D9C8;border-radius:22px;overflow:hidden;">
+      <div style="margin:0;padding:26px;background:#F3ECE3;font-family:Verdana,Arial,sans-serif;color:#2A241E;">
+        <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E6D9C8;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(34,25,16,0.08);">
+          <div style="padding:18px 22px;background:#FFFFFF;border-bottom:1px solid #EFE4D6;text-align:center;">
+            ${brandLogo}
+          </div>
+
           <div style="padding:18px 22px;border-bottom:1px solid #EFE4D6;background:${safeSoft};">
-            <p style="margin:0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#7B6853;">${safeRoleLabel}</p>
-            <h2 style="margin:6px 0 0 0;font-size:26px;line-height:1.2;color:#1F1A15;">Pedido #${safeOrderShort}</h2>
+            <p style="margin:0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#7B6853;">${safeRoleLabel}</p>
+            <h2 style="margin:6px 0 0 0;font-size:25px;line-height:1.2;color:#1F1A15;">Pedido #${safeOrderShort}</h2>
             <p style="margin:8px 0 0 0;font-size:14px;color:#5F5144;">${safeHeadline}</p>
             <div style="margin-top:10px;display:inline-block;padding:6px 12px;border-radius:999px;background:${safeAccent};color:#FFFFFF;font-weight:700;font-size:11px;letter-spacing:0.06em;">${safeBadge}</div>
           </div>
@@ -287,6 +315,11 @@ export function buildOrderEmail(
               <p style="margin:6px 0 0 0;font-size:14px;"><strong>Frete:</strong> ${formatCurrency(order.shippingAmount)}</p>
               <p style="margin:6px 0 0 0;font-size:16px;color:${safeAccent};"><strong>Total:</strong> ${formatCurrency(order.total)}</p>
             </div>
+
+            <div style="margin-top:14px;border-top:1px solid #EFE4D6;padding-top:12px;font-size:12px;color:#74614D;">
+              <p style="margin:0;">EncantArtes · Velas artesanais e presentes</p>
+              <p style="margin:6px 0 0 0;">Instagram: ${safeInstagram} · WhatsApp: ${safePhone}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -313,7 +346,8 @@ export function buildOrderEmail(
       `Subtotal: ${formatCurrency(order.subtotal)}`,
       ...(hasDiscount ? [`Cupom: ${order.couponCode} (-${formatCurrency(order.discountAmount || 0)})`] : []),
       `Frete: ${formatCurrency(order.shippingAmount)}`,
-      `Total: ${formatCurrency(order.total)}`
+      `Total: ${formatCurrency(order.total)}`,
+      `Contato: Instagram ${BRAND_INSTAGRAM} | WhatsApp ${BRAND_PHONE}`
     ].join("\n")
   };
 }
