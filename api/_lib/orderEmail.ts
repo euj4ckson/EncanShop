@@ -17,6 +17,8 @@ function formatCurrency(value: number): string {
 }
 
 function statusLabel(status: Order["status"], paymentStatus: Order["paymentStatus"]): string {
+  if (status === "preparing") return "Pedido em preparacao";
+  if (status === "shipped") return "Pedido enviado";
   if (status === "paid") return "Pagamento aprovado";
   if (status === "cancelled") return "Pagamento cancelado";
   if (status === "failed") return "Pagamento recusado";
@@ -46,6 +48,8 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
   const safeCustomerEmail = escapeHtml(order.customerEmail);
   const safePaymentMethod = escapeHtml(order.paymentMethod);
   const safeNotes = order.notes ? escapeHtml(order.notes) : "";
+  const safeCouponCode = order.couponCode ? escapeHtml(order.couponCode) : "";
+  const hasDiscount = typeof order.discountAmount === "number" && order.discountAmount > 0;
 
   return {
     subject: `Pedido ${order.id} - EncantArtes`,
@@ -58,6 +62,7 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
       ${safeNotes ? `<p><strong>Observacoes:</strong> ${safeNotes}</p>` : ""}
       <ul>${itemsHtml}</ul>
       <p><strong>Subtotal:</strong> ${formatCurrency(order.subtotal)}</p>
+      ${hasDiscount ? `<p><strong>Cupom:</strong> ${safeCouponCode} (-${formatCurrency(order.discountAmount || 0)})</p>` : ""}
       <p><strong>Frete:</strong> ${formatCurrency(order.shippingAmount)}</p>
       <p><strong>Total:</strong> ${formatCurrency(order.total)}</p>
     `,
@@ -75,6 +80,7 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
         return `- ${item.name} x${item.quantity} (${formatCurrency(item.price * item.quantity)})${extras ? ` [${extras}]` : ""}`;
       }),
       `Subtotal: ${formatCurrency(order.subtotal)}`,
+      ...(hasDiscount ? [`Cupom: ${order.couponCode} (-${formatCurrency(order.discountAmount || 0)})`] : []),
       `Frete: ${formatCurrency(order.shippingAmount)}`,
       `Total: ${formatCurrency(order.total)}`
     ].join("\n")

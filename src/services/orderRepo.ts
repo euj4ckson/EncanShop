@@ -31,6 +31,7 @@ export const OrderRepo = {
     items: CartItem[];
     address: Partial<Address>;
     shippingAmount: number;
+    couponCode?: string;
     paymentMethod: CheckoutPaymentMethod;
     cpf?: string;
     notes?: string;
@@ -52,6 +53,17 @@ export const OrderRepo = {
         body: JSON.stringify({ reason })
       },
       { mode: "cancel", id }
+    );
+  },
+
+  async resumePayment(id: string): Promise<Order> {
+    return requestJson<Order>(
+      "/api/orders",
+      {
+        method: "POST",
+        headers: customerAuthHeaders()
+      },
+      { mode: "resume_payment", id }
     );
   },
 
@@ -78,6 +90,17 @@ export const OrderRepo = {
         body: JSON.stringify({ status: input.status, reason: input.reason })
       },
       { mode: "admin_update", id: input.id }
+    );
+  },
+
+  async removeAsAdmin(id: string): Promise<void> {
+    await requestJson<void>(
+      "/api/orders",
+      {
+        method: "DELETE",
+        headers: adminHeaders()
+      },
+      { mode: "admin_delete", id }
     );
   }
 };

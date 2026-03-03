@@ -1,4 +1,4 @@
-﻿import { Instagram, MessageCircle, ShoppingBag } from "lucide-react";
+﻿import { Instagram, MessageCircle, ShoppingBag, UserRound } from "lucide-react";
 import { PrefetchLink } from "@/routes/PrefetchLink";
 import { useCart } from "@/store/cart";
 import { CartBadge } from "@/components/CartBadge";
@@ -18,7 +18,7 @@ export function Header() {
   return (
     <header className="fixed top-0 z-40 w-full border-b border-sand-200/60 bg-sand-50/80 backdrop-blur-xl">
       <div className="section-shell flex items-center justify-between py-3">
-        <PrefetchLink to="/" className="flex items-center gap-3">
+        <PrefetchLink to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <div className="relative">
             <img
               src={logo}
@@ -27,18 +27,30 @@ export function Header() {
             />
             <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-gold-500 ring-2 ring-sand-50" />
           </div>
-          <div className="leading-tight">
-            <p className="font-serif text-lg font-semibold text-ink-900">EncantArtes</p>
-            <p className="text-xs text-ink-500">Velas artesanais & presentes</p>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate font-serif text-base font-semibold text-ink-900 sm:text-lg">
+              EncantArtes
+            </p>
+            <p className="hidden truncate text-xs text-ink-500 sm:block">
+              Velas artesanais & presentes
+            </p>
           </div>
         </PrefetchLink>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <PrefetchLink
             to="/?view=products#produtos"
             className="hidden rounded-full border border-sand-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-700 transition hover:bg-white md:inline-flex"
           >
             Produtos
+          </PrefetchLink>
+          <PrefetchLink
+            to="/conta"
+            aria-label="Minha conta"
+            className="inline-flex items-center gap-1.5 rounded-full border border-sand-200/70 bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-700 transition hover:bg-white md:hidden"
+          >
+            <UserRound className="h-4 w-4" />
+            Conta
           </PrefetchLink>
           <PrefetchLink
             to="/conta"

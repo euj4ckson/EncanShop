@@ -1,6 +1,16 @@
-﻿# EncantArtes — E-commerce (React + TypeScript + Vite)
+﻿# EncantArtes - E-commerce (React + TypeScript + Vite)
 
-Projeto front-end completo para a loja EncantArtes, com vitrine, carrinho e área admin.
+Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do cliente e painel admin.
+
+## Estado atual (03/03/2026)
+
+- Checkout com WhatsApp, PIX (QR Code) e cartao de credito (ate 4x) via Mercado Pago.
+- Webhook oficial do Mercado Pago para atualizacao automatica de status.
+- Cupons de desconto (valor fixo, percentual e frete gratis) com aplicacao no checkout.
+- Area do cliente com cadastro/login, enderecos salvos e pedidos.
+- Lista de pedidos do cliente expansivel (itens, endereco, totais, observacoes, status).
+- Retomada de pagamento de pedido pendente/falho pela area do cliente, no mesmo metodo original do pedido.
+- Painel admin com gestao de produtos, fragrancias globais, cupons, status de pedidos e exclusao de pedidos.
 
 ## Requisitos
 
@@ -27,28 +37,37 @@ npm run build
 
 ## Admin
 
-A senha é definida via variável de ambiente:
+A senha e definida via variavel de ambiente:
 
 ```bash
 VITE_ADMIN_PASSWORD="sua_senha_segura"
 ```
 
-Caso não exista, a aplicação usa `encantartes123` e exibe um alerta no login.
+Caso nao exista, a aplicacao usa `encantartes123` e exibe um alerta no login.
+
+### Recursos no painel admin
+
+- Produtos: criar, editar, remover.
+- Fragrancias globais: criar, ativar/desativar, remover.
+- Cupons: criar, ativar/desativar, remover.
+- Pedidos:
+  - Atualizar status para `em preparacao`, `enviado` e `cancelado`.
+  - Excluir pedido com confirmacao previa (somente admin).
 
 ## Produtos compartilhados (Vercel Blob + Redis)
 
-O projeto agora usa:
+O projeto usa:
 
 - `Vercel Blob` para salvar imagens enviadas pelo painel admin.
-- `Upstash Redis` (integração da Vercel) para salvar produtos de forma compartilhada.
+- `Upstash Redis` (integracao da Vercel) para salvar dados compartilhados.
 
-Com isso, produtos cadastrados no `/admin` em produção passam a aparecer para todos os visitantes.
+Com isso, dados cadastrados no `/admin` em producao aparecem para todos os visitantes.
 
-### Configuração na Vercel
+### Configuracao na Vercel
 
-1. No projeto da Vercel, adicione a integração **Blob**.
-2. Adicione a integração **Upstash Redis**.
-3. Configure as variáveis de ambiente (Production/Preview):
+1. No projeto da Vercel, adicione a integracao **Blob**.
+2. Adicione a integracao **Upstash Redis**.
+3. Configure as variaveis de ambiente (Production/Preview):
 
 ```bash
 VITE_ADMIN_PASSWORD="sua_senha_segura"
@@ -66,64 +85,83 @@ ORDER_EMAIL_FROM="EncantArtes <pedidos@seu-dominio.com>"
 ORDER_ADMIN_EMAIL="jacksonduardo6@gmail.com"
 ```
 
-Observação de segurança:
+Observacoes de seguranca:
 
-- Em produção, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` são obrigatórios.
-- Sem `MP_WEBHOOK_SECRET` em produção, o webhook é rejeitado por segurança.
+- Em producao, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` sao obrigatorios.
+- Sem `MP_WEBHOOK_SECRET` em producao, o webhook e rejeitado por seguranca.
 
-4. Faça um novo deploy.
+4. Faca um novo deploy.
 
-### Modos de execução
+### Modos de execucao
 
-- `npm run dev` (local): usa `localStorage` para produtos (mais simples para desenvolvimento).
-- Produção (`Vercel`): usa `/api/products` + Redis/Blob automaticamente.
-- Opcional: force um modo com `VITE_PRODUCTS_BACKEND=local` ou `VITE_PRODUCTS_BACKEND=api`.
+- `npm run dev` (local): usa `localStorage` para parte dos dados (modo desenvolvimento).
+- Producao (`Vercel`): usa `/api/*` + Redis/Blob automaticamente.
+- Opcional: force modo com `VITE_PRODUCTS_BACKEND=local` ou `VITE_PRODUCTS_BACKEND=api`.
+
+## Checkout online (Mercado Pago)
+
+Fluxos suportados:
+
+- WhatsApp
+- PIX com QR Code
+- Cartao de credito (Checkout Mercado Pago, ate 4x)
+- Cupons de desconto (`fixed`, `percent`, `free_shipping`)
+- Campo de observacoes do pedido
+- Mensagem pos-pagamento orientando envio de detalhes via WhatsApp
+- Cancelamento de pedido na area do cliente (com tentativa de cancelamento/estorno no Mercado Pago)
+
+### Endpoints
+
+- `/api/customer-auth` (cadastro/login)
+- `/api/customer-profile` (perfil e enderecos)
+- `/api/shipping` (calculo de frete por CEP)
+- `/api/orders` (criacao, consulta, cancelamento, retomada de pagamento, atualizacao/exclusao admin)
+- `/api/fragrances` (fragrancias globais)
+- `/api/coupons` (CRUD admin + validacao de cupom)
+- `/api/checkout-config`
+- `/api/mercadopago-webhook`
+
+### Rotas de frontend
+
+- `/conta` para login/cadastro e area do cliente
+- `/carrinho` com checkout completo
+- `/admin` para painel de administracao
+
+### Regras de pagamento em pedidos existentes
+
+- A retomada de pagamento vale para pedidos pendentes/falhos.
+- O cliente nao pode trocar o metodo nesse fluxo:
+  - Pedido PIX continua PIX.
+  - Pedido cartao continua cartao.
+  - Pedido WhatsApp continua WhatsApp.
+
+## Fragrancias globais
+
+- Gerenciadas no painel `/admin` em **Fragrancias**.
+- Nao precisam ser cadastradas produto por produto.
+- A selecao feita no detalhe do produto e salva no carrinho e no pedido.
+
+## Cupons de desconto
+
+- Gerenciados no painel `/admin` em **Cupons**.
+- Tipos suportados:
+  - `percent`: desconto percentual no subtotal.
+  - `fixed`: desconto em valor no subtotal.
+  - `free_shipping`: isenta frete.
+- O cupom aplicado e salvo no pedido (`couponCode`, `couponType`, `discountAmount`).
 
 ## Contatos
 
-- Editáveis pelo painel `/admin` ? aba **Configurações**.
-- Valores padrão estão em `src/lib/config.ts`.
-- Persistência via LocalStorage em `encantartes_contacts`.
+- Editaveis pelo painel `/admin` na aba **Configuracoes**.
+- Valores padrao em `src/lib/config.ts`.
+- Persistencia local em `encantartes_contacts` (quando aplicavel ao modo local).
 
 ## Seed de produtos
 
 - Arquivo: `src/data/seedProducts.json`
-- Usado como fallback inicial quando o Redis ainda não possui produtos.
-- Em desenvolvimento local, a persistência continua via LocalStorage em `encantartes_products`.
+- Usado como fallback inicial quando o Redis ainda nao possui dados.
 
-Para redefinir a vitrine, limpe o LocalStorage do navegador.
-
-## Checkout online (Mercado Pago)
-
-Agora o checkout possui:
-
-- WhatsApp (fluxo já existente)
-- PIX com QR Code
-- Cartão de crédito (Checkout Mercado Pago, até 4x)
-- Webhook para atualização automática de status do pedido (`pending`, `approved`, `rejected`, `cancelled`)
-- Campo de observações do pedido no checkout
-- Cancelamento de pedido na área do cliente com tentativa de cancelamento/estorno no Mercado Pago
-
-### Endpoints adicionados
-
-- `/api/customer-auth` (cadastro/login)
-- `/api/customer-profile` (perfil e endereços)
-- `/api/shipping` (cálculo de frete por CEP)
-- `/api/orders` (criação e consulta de pedidos)
-- `/api/fragrances` (fragrâncias globais)
-- `/api/checkout-config`
-- `/api/mercadopago-webhook`
-
-### Rotas de frontend adicionadas
-
-- `/conta` para login/cadastro e área do cliente (pedidos + endereços)
-- `/carrinho` com checkout completo
-
-## Fragrâncias globais
-
-- As fragrâncias são gerenciadas no painel `/admin` em **Fragrâncias**.
-- Não precisam ser cadastradas por produto.
-- A seleção feita no detalhe do produto é salva no carrinho e no pedido.
+Para redefinir vitrine local, limpe o LocalStorage do navegador.
 
 ## Testes
 
@@ -142,13 +180,13 @@ npm run format
 
 Coloque o logo real em `src/assets/logo.svg` (ou `.png`) e mantenha o import em uso.
 
-## Próximos passos
+## Proximos passos sugeridos
 
-1. Migrar autenticação admin para validação no servidor (sessão/cookie/JWT).
-2. Levar contatos (`Configurações`) para o mesmo backend compartilhado.
-3. Migrar persistência do carrinho para backend (opcional).
-4. Adicionar otimização/redimensionamento de imagens no upload.
+1. Migrar autenticacao admin para sessao/cookie/JWT server-side.
+2. Centralizar todos os dados de contato no backend compartilhado.
+3. Adicionar testes automatizados para fluxos de checkout e pedidos.
+4. Adicionar otimizacao/redimensionamento de imagens no upload.
 
 ---
 
-Feito para priorizar UI/UX premium, performance e manutenção.
+Feito para priorizar UI/UX, performance e manutencao.
