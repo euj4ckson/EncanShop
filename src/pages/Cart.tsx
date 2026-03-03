@@ -66,6 +66,43 @@ function statusText(order: Order): string {
   return "Aguardando pagamento";
 }
 
+function LastOrderCard({
+  order,
+  whatsappLink
+}: {
+  order: Order;
+  whatsappLink: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-sand-200/70 bg-white/80 p-4">
+      <p className="text-xs uppercase tracking-wide text-ink-500">Ultimo pedido</p>
+      <p className="text-sm font-semibold text-ink-900">{order.id}</p>
+      <p className="text-sm text-ink-700">{statusText(order)}</p>
+      {order.notes ? <p className="mt-2 text-xs text-ink-600">Observacoes: {order.notes}</p> : null}
+      {order.paymentMethod === "pix" && order.pixQrCodeBase64 ? (
+        <div className="mt-3 space-y-2">
+          <img
+            src={`data:image/png;base64,${order.pixQrCodeBase64}`}
+            alt="QR Code PIX"
+            className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
+          />
+          <Input value={order.pixQrCode || ""} readOnly />
+        </div>
+      ) : null}
+      <div className="mt-3 rounded-xl border border-sand-200/70 bg-sand-50/70 p-3">
+        <p className="text-xs text-ink-700">
+          Se quiser passar mais detalhes sobre o pedido, fale com a gente no WhatsApp.
+        </p>
+        <Button asChild variant="outline" className="mt-2 w-full">
+          <a href={whatsappLink} target="_blank" rel="noreferrer">
+            Enviar detalhes no WhatsApp
+          </a>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function Cart() {
   useSeo({
     title: "Carrinho",
@@ -244,6 +281,7 @@ export function Cart() {
         return;
       }
       if (order.paymentMethod === "pix") {
+        navigate(`/carrinho?order_id=${order.id}`, { replace: true });
         toast({
           title: "PIX gerado",
           description: "Use o QR Code para concluir o pagamento.",
@@ -283,6 +321,11 @@ export function Cart() {
             Voltar para a vitrine
           </PrefetchLink>
         </div>
+        {lastOrder ? (
+          <div className="mx-auto mt-4 max-w-lg text-left">
+            <LastOrderCard order={lastOrder} whatsappLink={lastOrderWhatsappLink} />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -540,33 +583,8 @@ export function Cart() {
           </Button>
 
           {lastOrder ? (
-            <div className="mt-6 rounded-2xl border border-sand-200/70 bg-white/80 p-4">
-              <p className="text-xs uppercase tracking-wide text-ink-500">Último pedido</p>
-              <p className="text-sm font-semibold text-ink-900">{lastOrder.id}</p>
-              <p className="text-sm text-ink-700">{statusText(lastOrder)}</p>
-              {lastOrder.notes ? (
-                <p className="mt-2 text-xs text-ink-600">Observacoes: {lastOrder.notes}</p>
-              ) : null}
-              {lastOrder.paymentMethod === "pix" && lastOrder.pixQrCodeBase64 ? (
-                <div className="mt-3 space-y-2">
-                  <img
-                    src={`data:image/png;base64,${lastOrder.pixQrCodeBase64}`}
-                    alt="QR Code PIX"
-                    className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
-                  />
-                  <Input value={lastOrder.pixQrCode || ""} readOnly />
-                </div>
-              ) : null}
-              <div className="mt-3 rounded-xl border border-sand-200/70 bg-sand-50/70 p-3">
-                <p className="text-xs text-ink-700">
-                  Se quiser passar mais detalhes sobre o pedido, fale com a gente no WhatsApp.
-                </p>
-                <Button asChild variant="outline" className="mt-2 w-full">
-                  <a href={lastOrderWhatsappLink} target="_blank" rel="noreferrer">
-                    Enviar detalhes no WhatsApp
-                  </a>
-                </Button>
-              </div>
+            <div className="mt-6">
+              <LastOrderCard order={lastOrder} whatsappLink={lastOrderWhatsappLink} />
             </div>
           ) : null}
         </div>
@@ -574,3 +592,4 @@ export function Cart() {
     </div>
   );
 }
+
