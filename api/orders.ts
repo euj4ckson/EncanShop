@@ -19,9 +19,10 @@ import {
   mapPaymentToOrderStatus,
   refundPaymentById
 } from "./_lib/mercadopago.js";
+import { calculateCouponDiscount, normalizeCouponCode } from "./_lib/coupons.js";
 import { buildOrderEmail } from "./_lib/orderEmail.js";
 import { generateId } from "./_lib/security.js";
-import { readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
+import { readCoupons, readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
 
 type AdminOrderStatus = Extract<Order["status"], "preparing" | "shipped" | "cancelled">;
 
@@ -100,6 +101,10 @@ function areAddressesEqual(a: Address, b: Address): boolean {
 
 function canCustomerCancelOrder(order: Order): boolean {
   return order.status === "pending_payment" || order.status === "paid";
+}
+
+function canCustomerRetryPayment(order: Order): boolean {
+  return order.status === "pending_payment" || order.status === "failed";
 }
 
 function appendNote(current: string | undefined, line: string): string | undefined {
@@ -243,6 +248,23 @@ export default async function handler(req: any, res: any) {
       return json(res, 200, updated);
     }
 
+    if (req.method === "DELETE" && mode === "admin_delete") {
+      assertAdminAccess(req);
+      const id = getQueryParam(req.query?.id);
+      if (!id) {
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
+      }
+
+      const orders = await readOrders();
+      const target = orders.find((order) => order.id === id);
+      if (!target) {
+        return json(res, 404, { error: "Pedido nao encontrado." });
+      }
+
+      await writeOrders(orders.filter((order) => order.id !== id));
+      return json(res, 204, null);
+    }
+
     const authed = await requireAuthedCustomer(req, res);
     if (!authed) return;
 
@@ -258,10 +280,91 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "POST") {
+      if (mode === "resume_payment") {
+        const id = getQueryParam(req.query?.id);
+        if (!id) {
+          return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
+        }
+
+        const orders = await readOrders();
+        const target = orders.find((order) => order.id === id && order.customerId === authed.id);
+        if (!target) {
+          return json(res, 404, { error: "Pedido nao encontrado." });
+        }
+        if (!canCustomerRetryPayment(target)) {
+          return json(res, 400, { error: "Pedido nao esta pendente de pagamento." });
+        }
+
+        if (target.paymentMethod === "whatsapp") {
+          return json(res, 400, {
+            error: "Pedidos via WhatsApp devem ser finalizados no atendimento."
+          });
+        }
+
+        if (
+          target.paymentMethod === "pix" &&
+          (target.paymentStatus === "created" ||
+            target.paymentStatus === "pending" ||
+            target.paymentStatus === "in_process") &&
+          target.pixQrCodeBase64
+        ) {
+          return json(res, 200, target);
+        }
+
+        if (
+          target.paymentMethod === "credit_card" &&
+          (target.paymentStatus === "created" ||
+            target.paymentStatus === "pending" ||
+            target.paymentStatus === "in_process") &&
+          target.checkoutUrl
+        ) {
+          return json(res, 200, target);
+        }
+
+        let updated: Order = {
+          ...target,
+          updatedAt: new Date().toISOString()
+        };
+
+        if (target.paymentMethod === "pix") {
+          const cpf = onlyDigits(target.customerCpf || "");
+          if (cpf.length !== 11) {
+            return json(res, 400, {
+              error: "Pedido PIX sem CPF valido. Entre em contato com o suporte."
+            });
+          }
+          const pix = await createPixPayment({ order: target, cpf, req });
+          const mapped = mapPaymentToOrderStatus(pix.paymentStatus);
+          updated = {
+            ...updated,
+            paymentId: pix.paymentId,
+            paymentStatus: mapped.paymentStatus,
+            status: mapped.orderStatus,
+            pixQrCode: pix.qrCode,
+            pixQrCodeBase64: pix.qrCodeBase64,
+            externalReference: target.id
+          };
+        } else if (target.paymentMethod === "credit_card") {
+          const preference = await createCardPreference({ order: target, req });
+          updated = {
+            ...updated,
+            preferenceId: preference.preferenceId,
+            checkoutUrl: preference.checkoutUrl,
+            paymentStatus: "pending",
+            status: "pending_payment",
+            externalReference: target.id
+          };
+        }
+
+        await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+        return json(res, 200, updated);
+      }
+
       const body = (await readJsonBody(req)) as {
         items?: unknown;
         address?: Partial<Address>;
         shippingAmount?: number;
+        couponCode?: string;
         paymentMethod?: CheckoutPaymentMethod;
         cpf?: string;
         notes?: string;
@@ -285,8 +388,31 @@ export default async function handler(req: any, res: any) {
       }
 
       const subtotal = Number(computeSubtotal(items).toFixed(2));
-      const shippingAmount = Number(Math.max(0, parseNumber(body.shippingAmount, 0)).toFixed(2));
-      const total = Number((subtotal + shippingAmount).toFixed(2));
+      const shippingOriginalAmount = Number(Math.max(0, parseNumber(body.shippingAmount, 0)).toFixed(2));
+      const couponCode = normalizeCouponCode(body.couponCode || "");
+      const coupons = couponCode ? await readCoupons() : [];
+      const selectedCoupon = couponCode
+        ? coupons.find((coupon) => coupon.code === couponCode && coupon.active)
+        : null;
+      if (couponCode && !selectedCoupon) {
+        return json(res, 400, { error: "Cupom invalido ou inativo." });
+      }
+
+      const couponResult = selectedCoupon
+        ? calculateCouponDiscount({
+            coupon: selectedCoupon,
+            subtotal,
+            shippingAmount: shippingOriginalAmount
+          })
+        : {
+            discountAmount: 0,
+            shippingAmount: shippingOriginalAmount,
+            shippingOriginalAmount,
+            total: Number((subtotal + shippingOriginalAmount).toFixed(2))
+          };
+
+      const shippingAmount = couponResult.shippingAmount;
+      const total = couponResult.total;
       const now = new Date().toISOString();
       const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 800) : "";
 
@@ -298,8 +424,12 @@ export default async function handler(req: any, res: any) {
         customerCpf: onlyDigits(body.cpf || ""),
         items,
         address,
+        shippingOriginalAmount: couponResult.shippingOriginalAmount,
         shippingAmount,
         subtotal,
+        discountAmount: couponResult.discountAmount || undefined,
+        couponCode: selectedCoupon?.code,
+        couponType: selectedCoupon?.type,
         total,
         paymentMethod,
         paymentStatus: "created",
@@ -389,7 +519,7 @@ export default async function handler(req: any, res: any) {
       return json(res, 200, updated);
     }
 
-    res.setHeader("Allow", "GET,POST,PATCH");
+    res.setHeader("Allow", "GET,POST,PATCH,DELETE");
     return json(res, 405, { error: "Metodo nao permitido." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno.";

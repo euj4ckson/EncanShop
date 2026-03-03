@@ -1,6 +1,7 @@
 import type { Customer } from "../../src/types/customer";
 import type { Fragrance } from "../../src/types/fragrance";
 import type { Order } from "../../src/types/order";
+import type { Coupon } from "../../src/types/coupon";
 import { readJsonValue, writeJsonValue } from "./redis.js";
 
 type CustomerInternal = Customer & {
@@ -10,6 +11,7 @@ type CustomerInternal = Customer & {
 const CUSTOMERS_KEY = "encantartes_customers";
 const ORDERS_KEY = "encantartes_orders";
 const FRAGRANCES_KEY = "encantartes_fragrances";
+const COUPONS_KEY = "encantartes_coupons";
 
 export async function readCustomers(): Promise<CustomerInternal[]> {
   return readJsonValue<CustomerInternal[]>(CUSTOMERS_KEY, []);
@@ -33,6 +35,14 @@ export async function readFragrances(): Promise<Fragrance[]> {
 
 export async function writeFragrances(value: Fragrance[]): Promise<void> {
   await writeJsonValue(FRAGRANCES_KEY, value);
+}
+
+export async function readCoupons(): Promise<Coupon[]> {
+  return readJsonValue<Coupon[]>(COUPONS_KEY, []);
+}
+
+export async function writeCoupons(value: Coupon[]): Promise<void> {
+  await writeJsonValue(COUPONS_KEY, value);
 }
 
 export function stripCustomerSecret(customer: CustomerInternal): Customer {

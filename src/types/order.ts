@@ -1,5 +1,6 @@
 import type { Address } from "@/types/customer";
 import type { CartItem } from "@/types/cart";
+import type { CouponType } from "@/types/coupon";
 
 export type CheckoutPaymentMethod = "whatsapp" | "pix" | "credit_card";
 
@@ -30,7 +31,11 @@ export type Order = {
   items: CartItem[];
   address: Address;
   shippingAmount: number;
+  shippingOriginalAmount?: number;
   subtotal: number;
+  discountAmount?: number;
+  couponCode?: string;
+  couponType?: CouponType;
   total: number;
   paymentMethod: CheckoutPaymentMethod;
   paymentStatus: PaymentStatus;

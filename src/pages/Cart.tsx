@@ -11,13 +11,16 @@ import { useCart } from "@/store/cart";
 import { useCustomer } from "@/store/customer";
 import { formatCurrency, onlyDigits } from "@/lib/utils";
 import { buildCartMessage, buildWhatsAppLink } from "@/lib/whatsapp";
+import { formatOrderLabel } from "@/lib/orders";
 import { useContacts } from "@/services/useContacts";
 import { useSeo } from "@/lib/seo";
 import { PrefetchLink } from "@/routes/PrefetchLink";
 import { ShippingRepo } from "@/services/shippingRepo";
 import { OrderRepo } from "@/services/orderRepo";
+import { CouponRepo } from "@/services/couponRepo";
 import type { Address } from "@/types/customer";
 import type { CheckoutPaymentMethod, Order, ShippingQuote } from "@/types/order";
+import type { CouponPreview } from "@/types/coupon";
 import { useToast } from "@/components/ui/Toast";
 
 type AddressDraft = {
@@ -68,6 +71,12 @@ function statusText(order: Order): string {
   return "Aguardando pagamento";
 }
 
+function couponTypeLabel(type: CouponPreview["type"]): string {
+  if (type === "percent") return "Percentual";
+  if (type === "fixed") return "Valor fixo";
+  return "Frete gratis";
+}
+
 function LastOrderCard({
   order,
   whatsappLink
@@ -78,7 +87,7 @@ function LastOrderCard({
   return (
     <div className="rounded-2xl border border-sand-200/70 bg-white/80 p-4">
       <p className="text-xs uppercase tracking-wide text-ink-500">Ultimo pedido</p>
-      <p className="text-sm font-semibold text-ink-900">{order.id}</p>
+      <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(order.id)}</p>
       <p className="text-sm text-ink-700">{statusText(order)}</p>
       {order.notes ? <p className="mt-2 text-xs text-ink-600">Observacoes: {order.notes}</p> : null}
       {order.paymentMethod === "pix" && order.pixQrCodeBase64 ? (
@@ -124,6 +133,9 @@ export function Cart() {
   const [paymentMethod, setPaymentMethod] = React.useState<CheckoutPaymentMethod>("whatsapp");
   const [cpf, setCpf] = React.useState("");
   const [orderNotes, setOrderNotes] = React.useState("");
+  const [couponCode, setCouponCode] = React.useState("");
+  const [appliedCoupon, setAppliedCoupon] = React.useState<CouponPreview | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [lastOrder, setLastOrder] = React.useState<Order | null>(null);
 
@@ -138,8 +150,9 @@ export function Cart() {
       )
     : "";
 
-  const shippingAmount = shippingQuote?.amount ?? 0;
-  const total = subtotal + shippingAmount;
+  const shippingAmount = appliedCoupon ? appliedCoupon.shippingAmount : shippingQuote?.amount ?? 0;
+  const discountAmount = appliedCoupon?.discountAmount ?? 0;
+  const total = Number(Math.max(0, subtotal + shippingAmount - discountAmount).toFixed(2));
 
   const applySavedAddress = React.useCallback(
     (saved?: Address) => {
@@ -194,6 +207,63 @@ export function Cart() {
     }
   }, [address.cep, subtotal, toast]);
 
+  const applyCoupon = React.useCallback(
+    async (codeInput: string, silent = false) => {
+      if (!shippingQuote) {
+        if (!silent) {
+          toast({
+            title: "Calcule o frete antes",
+            description: "Informe o CEP para aplicar cupom no total do pedido.",
+            variant: "error"
+          });
+        }
+        return;
+      }
+
+      const normalizedCode = codeInput.trim().toUpperCase();
+      if (!normalizedCode) {
+        if (!silent) {
+          toast({
+            title: "Informe um cupom",
+            description: "Digite um codigo de cupom valido.",
+            variant: "error"
+          });
+        }
+        return;
+      }
+
+      setIsApplyingCoupon(true);
+      try {
+        const preview = await CouponRepo.validate({
+          code: normalizedCode,
+          subtotal,
+          shippingAmount: shippingQuote.amount
+        });
+        setAppliedCoupon(preview);
+        setCouponCode(preview.code);
+        if (!silent) {
+          toast({
+            title: "Cupom aplicado",
+            description: `${preview.code} (${couponTypeLabel(preview.type)})`,
+            variant: "success"
+          });
+        }
+      } catch (error) {
+        if (!silent) {
+          toast({
+            title: "Cupom invalido",
+            description: error instanceof Error ? error.message : "Tente novamente.",
+            variant: "error"
+          });
+        }
+        setAppliedCoupon(null);
+      } finally {
+        setIsApplyingCoupon(false);
+      }
+    },
+    [shippingQuote, subtotal, toast]
+  );
+
   React.useEffect(() => {
     const cep = onlyDigits(address.cep);
     if (cep.length !== 8) return;
@@ -202,6 +272,11 @@ export function Cart() {
     }, 500);
     return () => window.clearTimeout(timer);
   }, [address.cep, quoteShipping]);
+
+  React.useEffect(() => {
+    if (!appliedCoupon?.code || !shippingQuote) return;
+    void applyCoupon(appliedCoupon.code, true);
+  }, [appliedCoupon?.code, applyCoupon, shippingQuote?.amount, subtotal]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -272,6 +347,7 @@ export function Cart() {
         items,
         address: toAddressInput(address),
         shippingAmount: shippingQuote.amount,
+        couponCode: appliedCoupon?.code,
         paymentMethod,
         cpf,
         notes: orderNotes,
@@ -290,6 +366,8 @@ export function Cart() {
           variant: "success"
         });
         setOrderNotes("");
+        setAppliedCoupon(null);
+        setCouponCode("");
         clear();
         return;
       }
@@ -299,6 +377,8 @@ export function Cart() {
         variant: "success"
       });
       setOrderNotes("");
+      setAppliedCoupon(null);
+      setCouponCode("");
       clear();
     } catch (error) {
       toast({
@@ -504,10 +584,56 @@ export function Cart() {
         <div className="glass-panel h-fit p-6">
           <p className="text-xs uppercase tracking-wide text-ink-500">Subtotal</p>
           <p className="mt-1 text-xl font-semibold text-ink-900">{formatCurrency(subtotal)}</p>
+          {appliedCoupon ? (
+            <p className="mt-2 text-xs uppercase tracking-wide text-ink-500">
+              Cupom aplicado: {appliedCoupon.code} ({couponTypeLabel(appliedCoupon.type)})
+            </p>
+          ) : null}
           <p className="mt-2 text-xs uppercase tracking-wide text-ink-500">Frete</p>
           <p className="mt-1 text-lg font-semibold text-ink-900">{formatCurrency(shippingAmount)}</p>
+          {discountAmount > 0 ? (
+            <>
+              <p className="mt-2 text-xs uppercase tracking-wide text-ink-500">Desconto</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-700">
+                - {formatCurrency(discountAmount)}
+              </p>
+            </>
+          ) : null}
           <p className="mt-2 text-xs uppercase tracking-wide text-ink-500">Total</p>
           <p className="mt-1 text-3xl font-semibold text-ink-900">{formatCurrency(total)}</p>
+
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="checkout-coupon">Cupom de desconto</Label>
+            <div className="flex gap-2">
+              <Input
+                id="checkout-coupon"
+                value={couponCode}
+                onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                placeholder="EX: BEMVINDO10"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void applyCoupon(couponCode)}
+                disabled={isApplyingCoupon}
+              >
+                {isApplyingCoupon ? "Aplicando..." : "Aplicar"}
+              </Button>
+            </div>
+            {appliedCoupon ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setAppliedCoupon(null);
+                  setCouponCode("");
+                }}
+              >
+                Remover cupom
+              </Button>
+            ) : null}
+          </div>
 
           <div className="mt-5 space-y-3">
             <Label>Método de pagamento</Label>
@@ -580,7 +706,16 @@ export function Cart() {
             </p>
           ) : null}
 
-          <Button variant="outline" className="mt-3 w-full" onClick={clear} type="button">
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            onClick={() => {
+              clear();
+              setAppliedCoupon(null);
+              setCouponCode("");
+            }}
+            type="button"
+          >
             Limpar carrinho
           </Button>
 

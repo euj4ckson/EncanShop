@@ -1,15 +1,27 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  LogOut,
+  MessageCircle,
+  QrCode,
+  Trash2
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useToast } from "@/components/ui/Toast";
+import { buildWhatsAppLink } from "@/lib/whatsapp";
+import { canRetryPayment, formatOrderLabel, paymentMethodLabel } from "@/lib/orders";
 import { useSeo } from "@/lib/seo";
 import { formatCurrency } from "@/lib/utils";
 import { OrderRepo } from "@/services/orderRepo";
+import { useContacts } from "@/services/useContacts";
 import { useCustomer } from "@/store/customer";
+import type { Order } from "@/types/order";
 
 type AddressDraft = {
   label: string;
@@ -44,7 +56,7 @@ function statusLabel(status: string): string {
     case "paid":
       return "Pago";
     case "failed":
-      return "Recusado";
+      return "Falhou";
     case "cancelled":
       return "Cancelado";
     default:
@@ -52,15 +64,35 @@ function statusLabel(status: string): string {
   }
 }
 
+function paymentStatusLabel(status: string): string {
+  switch (status) {
+    case "approved":
+      return "Aprovado";
+    case "pending":
+    case "in_process":
+    case "created":
+      return "Pendente";
+    case "rejected":
+      return "Recusado";
+    case "cancelled":
+      return "Cancelado";
+    case "refunded":
+      return "Estornado";
+    default:
+      return status;
+  }
+}
+
 export function Account() {
   useSeo({
     title: "Minha conta",
-    description: "Acesse seus pedidos e endereços salvos."
+    description: "Acesse seus pedidos e enderecos salvos."
   });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const customer = useCustomer();
+  const { data: contacts } = useContacts();
   const [mode, setMode] = React.useState<"login" | "register">("login");
   const [loginEmail, setLoginEmail] = React.useState("");
   const [loginPassword, setLoginPassword] = React.useState("");
@@ -69,6 +101,8 @@ export function Account() {
   const [registerPassword, setRegisterPassword] = React.useState("");
   const [addressDraft, setAddressDraft] = React.useState<AddressDraft>(emptyAddress);
   const [cancelingOrderId, setCancelingOrderId] = React.useState("");
+  const [resumingOrderId, setResumingOrderId] = React.useState("");
+  const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: ["customer-orders", customer.customer?.id],
@@ -118,10 +152,10 @@ export function Account() {
         state: addressDraft.state.toUpperCase()
       });
       setAddressDraft(emptyAddress);
-      toast({ title: "Endereço salvo", variant: "success" });
+      toast({ title: "Endereco salvo", variant: "success" });
     } catch (error) {
       toast({
-        title: "Falha ao salvar endereço",
+        title: "Falha ao salvar endereco",
         description: error instanceof Error ? error.message : "Tente novamente.",
         variant: "error"
       });
@@ -137,8 +171,11 @@ export function Account() {
       ) || "";
     setCancelingOrderId(orderId);
     try {
-      await OrderRepo.cancel(orderId, reason);
-      await queryClient.invalidateQueries({ queryKey: ["customer-orders", customer.customer?.id] });
+      const updated = await OrderRepo.cancel(orderId, reason);
+      queryClient.setQueryData<Order[]>(
+        ["customer-orders", customer.customer?.id],
+        (current) => current?.map((item) => (item.id === updated.id ? updated : item)) ?? [updated]
+      );
       toast({
         title: status === "paid" ? "Cancelamento e estorno solicitados" : "Pedido cancelado",
         variant: "success"
@@ -154,6 +191,40 @@ export function Account() {
     }
   };
 
+  const handleResumePayment = async (order: Order) => {
+    if (!canRetryPayment(order) || order.paymentMethod === "whatsapp") return;
+    setResumingOrderId(order.id);
+    try {
+      const updated = await OrderRepo.resumePayment(order.id);
+      queryClient.setQueryData<Order[]>(
+        ["customer-orders", customer.customer?.id],
+        (current) => current?.map((item) => (item.id === updated.id ? updated : item)) ?? [updated]
+      );
+
+      if (updated.paymentMethod === "credit_card" && updated.checkoutUrl) {
+        window.location.href = updated.checkoutUrl;
+        return;
+      }
+
+      toast({
+        title: "Pagamento pronto",
+        description:
+          updated.paymentMethod === "pix"
+            ? "QR Code PIX atualizado para este pedido."
+            : "Siga para concluir o pagamento.",
+        variant: "success"
+      });
+    } catch (error) {
+      toast({
+        title: "Falha ao retomar pagamento",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "error"
+      });
+    } finally {
+      setResumingOrderId("");
+    }
+  };
+
   if (customer.isLoading) {
     return <div className="section-shell pb-12 pt-28">Carregando conta...</div>;
   }
@@ -165,7 +236,7 @@ export function Account() {
           <Card>
             <CardHeader>
               <h1 className="font-serif text-2xl text-ink-900">Minha conta</h1>
-              <p className="text-sm text-ink-600">Entre para acompanhar pedidos e endereços.</p>
+              <p className="text-sm text-ink-600">Entre para acompanhar pedidos e enderecos.</p>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
@@ -251,9 +322,9 @@ export function Account() {
               <h2 className="font-serif text-xl text-ink-900">Vantagens da conta</h2>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-ink-700">
-              <p>Salve endereços para reutilizar no checkout.</p>
-              <p>Acompanhe status de pedidos em tempo real.</p>
-              <p>Receba confirmação por e-mail após cada compra.</p>
+              <p>Salve enderecos para reutilizar no checkout.</p>
+              <p>Acompanhe status dos pedidos em tempo real.</p>
+              <p>Receba confirmacao por e-mail apos cada compra.</p>
             </CardContent>
           </Card>
         </div>
@@ -272,7 +343,7 @@ export function Account() {
           variant="outline"
           onClick={() => {
             customer.logout();
-            toast({ title: "Sessão encerrada" });
+            toast({ title: "Sessao encerrada" });
           }}
         >
           <LogOut className="h-4 w-4" />
@@ -283,7 +354,7 @@ export function Account() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <h2 className="font-serif text-xl text-ink-900">Endereços salvos</h2>
+            <h2 className="font-serif text-xl text-ink-900">Enderecos salvos</h2>
           </CardHeader>
           <CardContent className="space-y-3">
             {customer.customer.addresses.length ? (
@@ -291,9 +362,7 @@ export function Account() {
                 <div key={address.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-ink-900">
-                        {address.label || "Endereço"}
-                      </p>
+                      <p className="text-sm font-semibold text-ink-900">{address.label || "Endereco"}</p>
                       <p className="text-sm text-ink-700">
                         {address.street}, {address.number} - {address.neighborhood}
                       </p>
@@ -304,7 +373,7 @@ export function Account() {
                     <Button
                       variant="ghost"
                       onClick={() => void customer.removeAddress(address.id)}
-                      aria-label="Remover endereço"
+                      aria-label="Remover endereco"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -312,7 +381,7 @@ export function Account() {
                 </div>
               ))
             ) : (
-              <p className="text-sm text-ink-600">Nenhum endereço salvo ainda.</p>
+              <p className="text-sm text-ink-600">Nenhum endereco salvo ainda.</p>
             )}
 
             <form onSubmit={handleSaveAddress} className="mt-4 grid gap-3">
@@ -329,7 +398,7 @@ export function Account() {
                   required
                 />
                 <Input
-                  placeholder="Número"
+                  placeholder="Numero"
                   value={addressDraft.number}
                   onChange={(event) =>
                     setAddressDraft((prev) => ({ ...prev, number: event.target.value }))
@@ -374,7 +443,7 @@ export function Account() {
                   }
                 />
               </div>
-              <Button type="submit">Salvar endereço</Button>
+              <Button type="submit">Salvar endereco</Button>
             </form>
           </CardContent>
         </Card>
@@ -387,42 +456,155 @@ export function Account() {
             {ordersQuery.isLoading ? (
               <p className="text-sm text-ink-600">Carregando pedidos...</p>
             ) : ordersQuery.data?.length ? (
-              ordersQuery.data.map((order) => (
-                <div key={order.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-ink-900">{order.id}</p>
-                    <span className="text-xs uppercase tracking-wide text-ink-600">
-                      {statusLabel(order.status)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-ink-600">
-                    {new Date(order.createdAt).toLocaleString("pt-BR")}
-                  </p>
-                  <p className="text-sm text-ink-700">
-                    {order.items.length} item(ns) - {formatCurrency(order.total)}
-                  </p>
-                  {order.notes ? (
-                    <p className="mt-1 text-xs text-ink-600">Observacoes: {order.notes}</p>
-                  ) : null}
-                  {order.status === "pending_payment" || order.status === "paid" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => void handleCancelOrder(order.id, order.status)}
-                      disabled={cancelingOrderId === order.id}
+              ordersQuery.data.map((order) => {
+                const isExpanded = expandedOrderId === order.id;
+                const isPendingPayment = canRetryPayment(order);
+                const whatsappLink = buildWhatsAppLink(
+                  contacts?.whatsapp || "553291109045",
+                  `Ola! Quero concluir o pagamento do pedido ${order.id}.`
+                );
+
+                return (
+                  <div key={order.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() =>
+                        setExpandedOrderId((current) => (current === order.id ? null : order.id))
+                      }
                     >
-                      {cancelingOrderId === order.id
-                        ? "Processando..."
-                        : order.status === "paid"
-                          ? "Cancelar e estornar"
-                          : "Cancelar pedido"}
-                    </Button>
-                  ) : null}
-                </div>
-              ))
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-ink-900">
+                            {formatOrderLabel(order.id)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs uppercase tracking-wide text-ink-600">
+                            {statusLabel(order.status)}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-ink-500" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-ink-500" />
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-ink-600">
+                        {new Date(order.createdAt).toLocaleString("pt-BR")}
+                      </p>
+                      <p className="text-sm text-ink-700">
+                        {order.items.length} item(ns) - {formatCurrency(order.total)}
+                      </p>
+                    </button>
+
+                    {isExpanded ? (
+                      <div className="mt-3 space-y-3 border-t border-sand-200/70 pt-3">
+                        <p className="text-xs text-ink-600">
+                          Pagamento: {paymentMethodLabel(order.paymentMethod)} (
+                          {paymentStatusLabel(order.paymentStatus)})
+                        </p>
+
+                        <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
+                            Itens do pedido
+                          </p>
+                          <div className="mt-2 space-y-1 text-sm text-ink-700">
+                            {order.items.map((item, index) => (
+                              <p key={`${order.id}-${item.productId}-${index}`}>
+                                {item.quantity}x {item.name}
+                                {item.variant ? ` - Cor: ${item.variant}` : ""}
+                                {item.fragrance ? ` - Fragrancia: ${item.fragrance}` : ""}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3 text-xs text-ink-700">
+                          <p>
+                            Entrega: {order.address.street}, {order.address.number} -{" "}
+                            {order.address.neighborhood}, {order.address.city}/{order.address.state} - CEP{" "}
+                            {order.address.cep}
+                          </p>
+                          {order.discountAmount ? (
+                            <p className="mt-1">
+                              Desconto ({order.couponCode || "cupom"}): -{" "}
+                              {formatCurrency(order.discountAmount)}
+                            </p>
+                          ) : null}
+                          <p className="mt-1">Frete: {formatCurrency(order.shippingAmount)}</p>
+                          <p className="mt-1 font-semibold">Total: {formatCurrency(order.total)}</p>
+                        </div>
+
+                        {order.notes ? (
+                          <p className="text-xs text-ink-600">Observacoes: {order.notes}</p>
+                        ) : null}
+
+                        {isPendingPayment ? (
+                          <div className="space-y-2">
+                            {order.paymentMethod === "credit_card" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void handleResumePayment(order)}
+                                disabled={resumingOrderId === order.id}
+                              >
+                                <CreditCard className="h-4 w-4" />
+                                {resumingOrderId === order.id ? "Processando..." : "Pagar com cartao"}
+                              </Button>
+                            ) : order.paymentMethod === "pix" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void handleResumePayment(order)}
+                                disabled={resumingOrderId === order.id}
+                              >
+                                <QrCode className="h-4 w-4" />
+                                {resumingOrderId === order.id ? "Processando..." : "Pagar com PIX"}
+                              </Button>
+                            ) : (
+                              <Button asChild variant="outline" size="sm">
+                                <a href={whatsappLink} target="_blank" rel="noreferrer">
+                                  <MessageCircle className="h-4 w-4" />
+                                  Finalizar no WhatsApp
+                                </a>
+                              </Button>
+                            )}
+
+                            {order.paymentMethod === "pix" && order.pixQrCodeBase64 ? (
+                              <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
+                                <img
+                                  src={`data:image/png;base64,${order.pixQrCodeBase64}`}
+                                  alt="QR Code PIX"
+                                  className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
+                                />
+                                <Input value={order.pixQrCode || ""} readOnly className="text-xs" />
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {order.status === "pending_payment" || order.status === "paid" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleCancelOrder(order.id, order.status)}
+                            disabled={cancelingOrderId === order.id}
+                          >
+                            {cancelingOrderId === order.id
+                              ? "Processando..."
+                              : order.status === "paid"
+                                ? "Cancelar e estornar"
+                                : "Cancelar pedido"}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
             ) : (
-              <p className="text-sm text-ink-600">Você ainda não tem pedidos.</p>
+              <p className="text-sm text-ink-600">Voce ainda nao tem pedidos.</p>
             )}
           </CardContent>
         </Card>

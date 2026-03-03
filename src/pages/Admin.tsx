@@ -5,6 +5,7 @@ import { AdminProductForm, type AdminProductFormValues } from "@/components/Admi
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import { clearSession } from "@/lib/auth";
 import { formatPhoneBR, slugify } from "@/lib/utils";
@@ -17,11 +18,13 @@ import { useContacts } from "@/services/useContacts";
 import { normalizeInstagram, normalizeWhatsapp } from "@/lib/contacts";
 import { FragranceRepo } from "@/services/fragranceRepo";
 import { OrderRepo } from "@/services/orderRepo";
+import { CouponRepo } from "@/services/couponRepo";
+import type { Coupon, CouponType } from "@/types/coupon";
 
 export function Admin({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = React.useState<"products" | "fragrances" | "orders" | "settings">(
-    "products"
-  );
+  const [tab, setTab] = React.useState<
+    "products" | "fragrances" | "orders" | "coupons" | "settings"
+  >("products");
   const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState<Product | null>(null);
   const queryClient = useQueryClient();
@@ -46,6 +49,10 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
   const ordersQuery = useQuery({
     queryKey: ["admin-orders"],
     queryFn: () => OrderRepo.listForAdmin()
+  });
+  const couponsQuery = useQuery({
+    queryKey: ["admin-coupons"],
+    queryFn: () => CouponRepo.listForAdmin()
   });
 
   const createMutation = useMutation({
@@ -132,6 +139,40 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
     },
     onError: (error) => showErrorToast("Falha ao atualizar pedido", error)
   });
+  const deleteOrderMutation = useMutation({
+    mutationFn: (id: string) => OrderRepo.removeAsAdmin(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["customer-orders"] });
+      toast({ title: "Pedido excluido", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao excluir pedido", error)
+  });
+  const createCouponMutation = useMutation({
+    mutationFn: (input: { code: string; type: CouponType; value: number }) => CouponRepo.create(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      toast({ title: "Cupom criado", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao criar cupom", error)
+  });
+  const updateCouponMutation = useMutation({
+    mutationFn: (input: { id: string; values: { active?: boolean } }) =>
+      CouponRepo.update(input.id, input.values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      toast({ title: "Cupom atualizado", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao atualizar cupom", error)
+  });
+  const deleteCouponMutation = useMutation({
+    mutationFn: (id: string) => CouponRepo.remove(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      toast({ title: "Cupom removido" });
+    },
+    onError: (error) => showErrorToast("Falha ao remover cupom", error)
+  });
 
   const filteredProducts = (productsQuery.data ?? []).filter((product) =>
     product.name.toLowerCase().includes(search.toLowerCase())
@@ -189,6 +230,13 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
             className="w-full justify-start"
           >
             Fragrâncias
+          </Button>
+          <Button
+            variant={tab === "coupons" ? "primary" : "ghost"}
+            onClick={() => setTab("coupons")}
+            className="w-full justify-start"
+          >
+            Cupons
           </Button>
         </aside>
 
@@ -296,7 +344,11 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
         ) : tab === "orders" ? (
           <AdminOrders
             orders={ordersQuery.data ?? []}
-            loading={ordersQuery.isLoading || updateOrderStatusMutation.isPending}
+            loading={
+              ordersQuery.isLoading ||
+              updateOrderStatusMutation.isPending ||
+              deleteOrderMutation.isPending
+            }
             onPrepare={(order) =>
               updateOrderStatusMutation.mutate({ id: order.id, status: "preparing" })
             }
@@ -310,6 +362,33 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                 reason
               });
             }}
+            onDelete={(order) => {
+              if (
+                window.confirm(
+                  `Excluir o pedido ${order.id}? Esta acao nao pode ser desfeita.`
+                )
+              ) {
+                deleteOrderMutation.mutate(order.id);
+              }
+            }}
+          />
+        ) : tab === "coupons" ? (
+          <AdminCoupons
+            coupons={couponsQuery.data ?? []}
+            loading={
+              couponsQuery.isLoading ||
+              createCouponMutation.isPending ||
+              updateCouponMutation.isPending ||
+              deleteCouponMutation.isPending
+            }
+            onCreate={(input) => createCouponMutation.mutate(input)}
+            onToggle={(coupon) =>
+              updateCouponMutation.mutate({
+                id: coupon.id,
+                values: { active: !coupon.active }
+              })
+            }
+            onRemove={(id) => deleteCouponMutation.mutate(id)}
           />
         ) : (
           <AdminSettings />
@@ -408,6 +487,121 @@ function orderStatusLabel(status: Order["status"]): string {
   }
 }
 
+function couponTypeLabel(type: CouponType): string {
+  switch (type) {
+    case "fixed":
+      return "Valor fixo";
+    case "percent":
+      return "Percentual";
+    case "free_shipping":
+      return "Frete gratis";
+    default:
+      return type;
+  }
+}
+
+function couponValueLabel(coupon: Coupon): string {
+  if (coupon.type === "percent") return `${coupon.value}%`;
+  if (coupon.type === "fixed") return `R$ ${coupon.value.toFixed(2)}`;
+  return "Isenta frete";
+}
+
+function AdminCoupons({
+  coupons,
+  loading,
+  onCreate,
+  onToggle,
+  onRemove
+}: {
+  coupons: Coupon[];
+  loading: boolean;
+  onCreate: (input: { code: string; type: CouponType; value: number }) => void;
+  onToggle: (coupon: Coupon) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [code, setCode] = React.useState("");
+  const [type, setType] = React.useState<CouponType>("percent");
+  const [value, setValue] = React.useState("10");
+  const parsedValue = Number(String(value).replace(",", "."));
+  const isInvalidValue =
+    type !== "free_shipping" && (!Number.isFinite(parsedValue) || parsedValue <= 0);
+
+  return (
+    <div className="glass-panel p-6">
+      <h2 className="font-serif text-2xl text-ink-900">Cupons de desconto</h2>
+      <p className="text-sm text-ink-600">
+        Crie cupons de valor fixo, percentual ou frete gratis para usar no checkout.
+      </p>
+
+      <form
+        className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_160px_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const normalizedCode = code.trim().toUpperCase();
+          if (!normalizedCode || isInvalidValue) return;
+          onCreate({
+            code: normalizedCode,
+            type,
+            value: type === "free_shipping" ? 0 : parsedValue
+          });
+          setCode("");
+          setType("percent");
+          setValue("10");
+        }}
+      >
+        <Input
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          placeholder="Codigo (ex: BEMVINDO10)"
+        />
+        <Select value={type} onChange={(event) => setType(event.target.value as CouponType)}>
+          <option value="percent">Percentual</option>
+          <option value="fixed">Valor fixo</option>
+          <option value="free_shipping">Frete gratis</option>
+        </Select>
+        <Input
+          value={type === "free_shipping" ? "0" : value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={type === "percent" ? "Ex: 10" : "Ex: 15.90"}
+          disabled={type === "free_shipping"}
+        />
+        <Button type="submit" disabled={loading || !code.trim() || isInvalidValue}>
+          Criar cupom
+        </Button>
+      </form>
+
+      <div className="mt-6 space-y-3">
+        {coupons.length ? (
+          coupons.map((coupon) => (
+            <div
+              key={coupon.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sand-200/70 bg-white/80 p-3"
+            >
+              <div>
+                <p className="font-semibold text-ink-900">{coupon.code}</p>
+                <p className="text-xs text-ink-500">
+                  {couponTypeLabel(coupon.type)} - {couponValueLabel(coupon)}
+                </p>
+                <p className="text-xs text-ink-500">{coupon.active ? "Ativo" : "Inativo"}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onToggle(coupon)} disabled={loading}>
+                  {coupon.active ? "Desativar" : "Ativar"}
+                </Button>
+                <Button variant="ghost" onClick={() => onRemove(coupon.id)} disabled={loading}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-ink-600">Nenhum cupom cadastrado.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function paymentStatusLabel(status: Order["paymentStatus"]): string {
   switch (status) {
     case "approved":
@@ -431,13 +625,15 @@ function AdminOrders({
   loading,
   onPrepare,
   onShip,
-  onCancel
+  onCancel,
+  onDelete
 }: {
   orders: Order[];
   loading: boolean;
   onPrepare: (order: Order) => void;
   onShip: (order: Order) => void;
   onCancel: (order: Order) => void;
+  onDelete: (order: Order) => void;
 }) {
   return (
     <div className="glass-panel p-6">
@@ -499,6 +695,14 @@ function AdminOrders({
                     onClick={() => onCancel(order)}
                   >
                     Cancelar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading}
+                    onClick={() => onDelete(order)}
+                  >
+                    Excluir
                   </Button>
                 </div>
               </div>
