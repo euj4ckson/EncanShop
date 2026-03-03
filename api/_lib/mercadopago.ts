@@ -123,6 +123,34 @@ function getNotificationUrl(req: any): string {
   return `${getWebhookBaseUrl(req)}/api/mercadopago-webhook`;
 }
 
+function buildCardPreferenceItem(order: Order): Array<{
+  id: string;
+  title: string;
+  quantity: number;
+  unit_price: number;
+  currency_id: "BRL";
+  description: string;
+}> {
+  const shortId = (order.id.split("_")[1] || order.id).replace(/-/g, "").slice(0, 8).toUpperCase();
+  const summaryParts = [
+    `${order.items.length} item(ns)`,
+    `Frete ${Number(order.shippingAmount || 0).toFixed(2)}`,
+    order.discountAmount ? `Desconto ${Number(order.discountAmount).toFixed(2)}` : "",
+    order.couponCode ? `Cupom ${order.couponCode}` : ""
+  ].filter(Boolean);
+
+  return [
+    {
+      id: order.id,
+      title: `Pedido EncantArtes #${shortId}`,
+      quantity: 1,
+      unit_price: Number(order.total.toFixed(2)),
+      currency_id: "BRL",
+      description: summaryParts.join(" | ")
+    }
+  ];
+}
+
 export async function createCardPreference(input: { order: Order; req: any }): Promise<{
   preferenceId: string;
   checkoutUrl: string;
@@ -145,28 +173,7 @@ export async function createCardPreference(input: { order: Order; req: any }): P
         email: order.customerEmail,
         name: order.customerName
       },
-      items: [
-        ...order.items.map((item) => ({
-          id: item.productId,
-          title: item.name,
-          quantity: item.quantity,
-          unit_price: Number(item.price.toFixed(2)),
-          currency_id: "BRL",
-          description: [
-            item.variant ? `Cor: ${item.variant}` : null,
-            item.fragrance ? `Fragrancia: ${item.fragrance}` : null
-          ]
-            .filter(Boolean)
-            .join(" | ")
-        })),
-        {
-          id: "shipping",
-          title: "Frete",
-          quantity: 1,
-          unit_price: Number(order.shippingAmount.toFixed(2)),
-          currency_id: "BRL"
-        }
-      ],
+      items: buildCardPreferenceItem(order),
       back_urls: buildBackUrls(order.id, input.req),
       auto_return: "approved",
       notification_url: getNotificationUrl(input.req),

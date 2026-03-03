@@ -1,6 +1,8 @@
 import type { Address } from "../src/types/customer";
 import type { CartItem } from "../src/types/cart";
 import type { CheckoutPaymentMethod, Order } from "../src/types/order";
+import type { Product } from "../src/types/product";
+import type { Fragrance } from "../src/types/fragrance";
 import {
   getQueryParam,
   json,
@@ -23,9 +25,26 @@ import {
 import { calculateCouponDiscount, normalizeCouponCode } from "./_lib/coupons.js";
 import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
 import { generateId } from "./_lib/security.js";
-import { readCoupons, readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
+import { readProductsCatalog } from "./_lib/products.js";
+import { calculateFreight } from "./_lib/shipping.js";
+import {
+  readCoupons,
+  readCustomers,
+  readFragrances,
+  readOrders,
+  withCustomersLock,
+  withOrdersLock,
+  writeCustomers,
+  writeOrders
+} from "./_lib/store.js";
 
 type AdminOrderStatus = Extract<Order["status"], "preparing" | "shipped" | "cancelled">;
+type RequestedCartItem = {
+  productId: string;
+  quantity: number;
+  variant?: string;
+  fragrance?: string;
+};
 
 function getAdminPasswordFromEnv(): string {
   const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
@@ -68,26 +87,101 @@ function validateAddress(address: Address): string | null {
   return null;
 }
 
-function normalizeItems(value: unknown): CartItem[] {
+function normalizeText(value: unknown, maxLength = 120): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function normalizeRequestedItems(value: unknown): RequestedCartItem[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {
-      const raw = (item || {}) as Partial<CartItem>;
+      const raw = (item || {}) as Record<string, unknown>;
       return {
-        productId: String(raw.productId || ""),
-        name: String(raw.name || ""),
-        price: parseNumber(raw.price, 0),
-        quantity: Math.max(1, parseNumber(raw.quantity, 1)),
-        image: raw.image ? String(raw.image) : undefined,
-        variant: raw.variant ? String(raw.variant) : undefined,
-        fragrance: raw.fragrance ? String(raw.fragrance) : undefined
-      } satisfies CartItem;
+        productId: normalizeText(raw.productId, 80),
+        quantity: Math.max(1, Math.min(99, Math.round(parseNumber(raw.quantity, 1)))),
+        variant: normalizeText(raw.variant, 80) || undefined,
+        fragrance: normalizeText(raw.fragrance, 80) || undefined
+      } satisfies RequestedCartItem;
     })
-    .filter((item) => item.productId && item.name && item.price > 0);
+    .filter((item) => Boolean(item.productId));
+}
+
+function findCaseInsensitive(options: string[], requested: string): string | undefined {
+  const target = requested.trim().toLowerCase();
+  if (!target) return undefined;
+  return options.find((item) => item.trim().toLowerCase() === target);
+}
+
+function canonicalizeOrderItems(input: {
+  requestedItems: RequestedCartItem[];
+  products: Product[];
+  fragrances: Fragrance[];
+}): { items?: CartItem[]; error?: string } {
+  if (!input.requestedItems.length) {
+    return { error: "Carrinho vazio." };
+  }
+
+  const productsById = new Map<string, Product>();
+  for (const product of input.products) {
+    productsById.set(product.id, product);
+  }
+
+  const activeFragrances = new Map<string, string>();
+  for (const fragrance of input.fragrances) {
+    if (fragrance.active) {
+      activeFragrances.set(fragrance.name.trim().toLowerCase(), fragrance.name);
+    }
+  }
+
+  const items: CartItem[] = [];
+  for (const requested of input.requestedItems) {
+    const product = productsById.get(requested.productId);
+    if (!product) {
+      return { error: "Carrinho contem produto invalido." };
+    }
+    if (!product.inStock) {
+      return { error: `O produto "${product.name}" esta sem estoque.` };
+    }
+
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    let variant: string | undefined;
+    if (variants.length > 0) {
+      if (!requested.variant) {
+        return { error: `Selecione a variante para "${product.name}".` };
+      }
+      const matchedVariant = findCaseInsensitive(variants, requested.variant);
+      if (!matchedVariant) {
+        return { error: `Variante invalida para "${product.name}".` };
+      }
+      variant = matchedVariant;
+    }
+
+    let fragrance: string | undefined;
+    if (requested.fragrance) {
+      const matchedFragrance = activeFragrances.get(requested.fragrance.trim().toLowerCase());
+      if (!matchedFragrance) {
+        return { error: `Fragrancia invalida para "${product.name}".` };
+      }
+      fragrance = matchedFragrance;
+    }
+
+    items.push({
+      productId: product.id,
+      name: product.name,
+      price: Number(product.price.toFixed(2)),
+      quantity: requested.quantity,
+      image: Array.isArray(product.images) && product.images.length ? product.images[0] : undefined,
+      variant,
+      fragrance
+    });
+  }
+
+  return { items };
 }
 
 function computeSubtotal(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return Number(items.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2));
 }
 
 function areAddressesEqual(a: Address, b: Address): boolean {
@@ -101,7 +195,7 @@ function areAddressesEqual(a: Address, b: Address): boolean {
 }
 
 function canCustomerCancelOrder(order: Order): boolean {
-  return order.status === "pending_payment" || order.status === "paid";
+  return order.status === "pending_payment" || order.status === "paid" || order.status === "failed";
 }
 
 function canCustomerRetryPayment(order: Order): boolean {
@@ -141,6 +235,16 @@ function normalizeTrackingUrl(value: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeTrackingCarrier(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value
+    .trim()
+    .replace(/[^\p{L}\p{N}\s().\-\/&]/gu, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+  return normalized || undefined;
 }
 
 function withCustomerPhoneFallback(orders: Order[], customers: Array<{ id: string; phone?: string }>): Order[] {
@@ -210,6 +314,31 @@ async function sendOrderStatusNotifications(order: Order): Promise<void> {
   }
 }
 
+async function sendTrackingUpdateNotifications(order: Order): Promise<void> {
+  const customerEmail = buildOrderEmail(order, "customer");
+  const adminEmail = buildOrderEmail(order, "admin");
+  const result = await sendCustomerAdminPair({
+    customer: {
+      to: order.customerEmail,
+      subject: `Rastreio atualizado - ${order.id}`,
+      html: customerEmail.html,
+      text: customerEmail.text
+    },
+    admin: {
+      to: getAdminEmail(),
+      subject: `Rastreio atualizado (admin) - ${order.id}`,
+      html: adminEmail.html,
+      text: adminEmail.text
+    }
+  });
+  if (!result.customer.ok) {
+    console.error(`[email] Cliente nao recebeu atualizacao de rastreio do pedido ${order.id}.`);
+  }
+  if (!result.admin.ok) {
+    console.error(`[email] Admin nao recebeu atualizacao de rastreio do pedido ${order.id}.`);
+  }
+}
+
 async function cancelOrderWithPayment(
   target: Order,
   reason: string,
@@ -253,14 +382,41 @@ async function cancelOrderWithPayment(
   return updated;
 }
 
-function updateOrderStatusByAdmin(target: Order, nextStatus: Exclude<AdminOrderStatus, "cancelled">): Order {
-  if (target.status === "cancelled") {
+function getAllowedAdminTransitions(current: Order["status"]): AdminOrderStatus[] {
+  switch (current) {
+    case "pending_payment":
+    case "paid":
+      return ["preparing", "shipped", "cancelled"];
+    case "failed":
+      return ["preparing", "cancelled"];
+    case "preparing":
+      return ["preparing", "shipped", "cancelled"];
+    case "shipped":
+      return ["shipped", "cancelled"];
+    case "cancelled":
+      return [];
+    default:
+      return [];
+  }
+}
+
+function updateOrderStatusByAdmin(
+  target: Order,
+  nextStatus: Exclude<AdminOrderStatus, "cancelled">,
+  note?: string
+): Order {
+  const allowed = getAllowedAdminTransitions(target.status);
+  if (!allowed.length) {
     throw new Error("Pedido cancelado nao pode ser atualizado.");
   }
+  if (!allowed.includes(nextStatus)) {
+    throw new Error("Transicao de status nao permitida para o estado atual.");
+  }
+
   return {
     ...target,
     status: nextStatus,
-    notes: appendNote(target.notes, `Status atualizado pelo admin: ${nextStatus}`),
+    notes: note ? appendNote(target.notes, note) : target.notes,
     updatedAt: new Date().toISOString()
   };
 }
@@ -275,63 +431,82 @@ function shouldSyncPaymentStatus(order: Order): boolean {
   return isPendingPaymentStatus || order.status === "pending_payment";
 }
 
+function mapOrderWithPaymentState(order: Order, payment: { id: string | number; status: any }): Order {
+  const mapped = mapPaymentToOrderStatus(payment.status);
+  const wasCancelled = order.status === "cancelled";
+  const isOperationalFlow = order.status === "preparing" || order.status === "shipped";
+  let nextPaymentStatus = mapped.paymentStatus;
+  let nextOrderStatus = mapped.orderStatus;
+
+  if (wasCancelled) {
+    nextOrderStatus = "cancelled";
+    if (payment.status === "refunded") {
+      nextPaymentStatus = "refunded";
+    }
+  } else if (isOperationalFlow) {
+    const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
+    nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : order.status;
+  }
+
+  return {
+    ...order,
+    paymentId: String(payment.id),
+    paymentStatus: nextPaymentStatus,
+    status: nextOrderStatus,
+    updatedAt: new Date().toISOString()
+  };
+}
+
 async function syncOrderPaymentStatusIfNeeded(input: {
   order: Order;
-  orders: Order[];
-}): Promise<{ order: Order; orders: Order[] }> {
-  const { order, orders } = input;
+  customerId: string;
+}): Promise<Order> {
+  const { order, customerId } = input;
   if (!shouldSyncPaymentStatus(order)) {
-    return { order, orders };
+    return order;
   }
 
   try {
     const payment = await getPaymentById(order.paymentId || "");
-    const mapped = mapPaymentToOrderStatus(payment.status);
-    const wasCancelled = order.status === "cancelled";
-    const isOperationalFlow = order.status === "preparing" || order.status === "shipped";
-    let nextPaymentStatus = mapped.paymentStatus;
-    let nextOrderStatus = mapped.orderStatus;
-
-    if (wasCancelled && payment.status === "approved") {
-      await refundPaymentById(String(payment.id), order.total);
-      nextPaymentStatus = "refunded";
-      nextOrderStatus = "cancelled";
-    } else if (wasCancelled) {
-      nextOrderStatus = "cancelled";
-      if (payment.status === "refunded") {
-        nextPaymentStatus = "refunded";
+    const result = await withOrdersLock(async () => {
+      const orders = await readOrders();
+      const target = orders.find((item) => item.id === order.id && item.customerId === customerId);
+      if (!target) {
+        return { kind: "not-found" as const, order };
       }
-    } else if (isOperationalFlow) {
-      const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
-      nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : order.status;
+
+      let updated = mapOrderWithPaymentState(target, payment);
+      if (target.status === "cancelled" && payment.status === "approved") {
+        await refundPaymentById(String(payment.id), target.total);
+        updated = {
+          ...updated,
+          paymentStatus: "refunded",
+          status: "cancelled",
+          updatedAt: new Date().toISOString()
+        };
+      }
+
+      const changed =
+        target.paymentId !== updated.paymentId ||
+        target.paymentStatus !== updated.paymentStatus ||
+        target.status !== updated.status;
+
+      if (!changed) {
+        return { kind: "unchanged" as const, order: target };
+      }
+
+      await writeOrders(orders.map((item) => (item.id === target.id ? updated : item)));
+      const shouldNotify = target.status !== updated.status || target.paymentStatus !== updated.paymentStatus;
+      return { kind: "updated" as const, order: updated, shouldNotify };
+    }, { ttlSeconds: 45 });
+
+    if (result.kind === "updated" && result.shouldNotify) {
+      await sendOrderStatusNotifications(result.order);
     }
 
-    const changed =
-      order.paymentId !== String(payment.id) ||
-      order.paymentStatus !== nextPaymentStatus ||
-      order.status !== nextOrderStatus;
-
-    if (!changed) {
-      return { order, orders };
-    }
-
-    const updated: Order = {
-      ...order,
-      paymentId: String(payment.id),
-      paymentStatus: nextPaymentStatus,
-      status: nextOrderStatus,
-      updatedAt: new Date().toISOString()
-    };
-    const nextOrders = orders.map((item) => (item.id === order.id ? updated : item));
-    await writeOrders(nextOrders);
-
-    if (order.status !== updated.status || order.paymentStatus !== updated.paymentStatus) {
-      await sendOrderStatusNotifications(updated);
-    }
-
-    return { order: updated, orders: nextOrders };
+    return result.order;
   } catch {
-    return { order, orders };
+    return order;
   }
 }
 
@@ -355,6 +530,7 @@ export default async function handler(req: any, res: any) {
       const body = (await readJsonBody(req)) as {
         status?: string;
         reason?: string;
+        note?: string;
         forceUnpaidTransition?: boolean;
       };
       const nextStatus = parseAdminStatus(body.status);
@@ -362,31 +538,48 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: "Status invalido para atualizacao admin." });
       }
       const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
 
-      const orders = await readOrders();
-      const target = orders.find((order) => order.id === id);
-      if (!target) {
-        return json(res, 404, { error: "Pedido nao encontrado." });
-      }
-
-      const isPaid = target.paymentStatus === "approved";
-      if ((nextStatus === "preparing" || nextStatus === "shipped") && !isPaid) {
-        if (body.forceUnpaidTransition !== true) {
-          return json(res, 409, {
-            error:
-              "Pedido nao foi pago. Confirme explicitamente para avancar mesmo sem pagamento."
-          });
+      const result = await withOrdersLock(async () => {
+        const orders = await readOrders();
+        const target = orders.find((order) => order.id === id);
+        if (!target) {
+          return { status: 404, body: { error: "Pedido nao encontrado." } } as const;
         }
+
+        const allowed = getAllowedAdminTransitions(target.status);
+        if (!allowed.includes(nextStatus)) {
+          return {
+            status: 409,
+            body: { error: "Transicao de status nao permitida para o estado atual." }
+          } as const;
+        }
+
+        const isPaid = target.paymentStatus === "approved";
+        if ((nextStatus === "preparing" || nextStatus === "shipped") && !isPaid) {
+          if (body.forceUnpaidTransition !== true) {
+            return {
+              status: 409,
+              body: {
+                error: "Pedido nao foi pago. Confirme explicitamente para avancar mesmo sem pagamento."
+              }
+            } as const;
+          }
+        }
+
+        const updated =
+          nextStatus === "cancelled"
+            ? await cancelOrderWithPayment(target, reason, "admin")
+            : updateOrderStatusByAdmin(target, nextStatus, note);
+
+        await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+        return { status: 200, body: updated, shouldNotify: true } as const;
+      }, { ttlSeconds: 45 });
+
+      if ("shouldNotify" in result && result.shouldNotify) {
+        await sendOrderStatusNotifications(result.body);
       }
-
-      const updated =
-        nextStatus === "cancelled"
-          ? await cancelOrderWithPayment(target, reason, "admin")
-          : updateOrderStatusByAdmin(target, nextStatus);
-
-      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
-      await sendOrderStatusNotifications(updated);
-      return json(res, 200, updated);
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "PATCH" && mode === "admin_tracking") {
@@ -396,38 +589,58 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
       const body = (await readJsonBody(req)) as {
+        trackingCarrier?: unknown;
         trackingCode?: unknown;
         trackingUrl?: unknown;
+        note?: unknown;
       };
 
+      const trackingCarrier = normalizeTrackingCarrier(body.trackingCarrier);
       const trackingCode = normalizeTrackingCode(body.trackingCode);
       const trackingUrl = normalizeTrackingUrl(body.trackingUrl);
+      const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) : "";
+      const hasTrackingCarrier = body.trackingCarrier !== undefined;
       const hasTrackingCode = body.trackingCode !== undefined;
       const hasTrackingUrl = body.trackingUrl !== undefined;
-      if (!hasTrackingCode && !hasTrackingUrl) {
+      const hasCustomNote = Boolean(note);
+      if (!hasTrackingCarrier && !hasTrackingCode && !hasTrackingUrl && !hasCustomNote) {
         return json(res, 400, { error: "Nada para atualizar no rastreio." });
       }
       if (hasTrackingUrl && body.trackingUrl && !trackingUrl) {
         return json(res, 400, { error: "Link de rastreio invalido." });
       }
 
-      const orders = await readOrders();
-      const target = orders.find((order) => order.id === id);
-      if (!target) {
-        return json(res, 404, { error: "Pedido nao encontrado." });
+      const result = await withOrdersLock(async () => {
+        const orders = await readOrders();
+        const target = orders.find((order) => order.id === id);
+        if (!target) {
+          return { status: 404, body: { error: "Pedido nao encontrado." } } as const;
+        }
+
+        const trackingCarrierChanged = hasTrackingCarrier && trackingCarrier !== target.trackingCarrier;
+        const trackingCodeChanged = hasTrackingCode && trackingCode !== target.trackingCode;
+        const trackingUrlChanged = hasTrackingUrl && trackingUrl !== target.trackingUrl;
+        if (!trackingCarrierChanged && !trackingCodeChanged && !trackingUrlChanged && !hasCustomNote) {
+          return { status: 200, body: target, shouldNotify: false } as const;
+        }
+
+        const updated: Order = {
+          ...target,
+          trackingCarrier: hasTrackingCarrier ? trackingCarrier : target.trackingCarrier,
+          trackingCode: hasTrackingCode ? trackingCode : target.trackingCode,
+          trackingUrl: hasTrackingUrl ? trackingUrl : target.trackingUrl,
+          notes: hasCustomNote ? appendNote(target.notes, note) : target.notes,
+          updatedAt: new Date().toISOString()
+        };
+
+        await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+        return { status: 200, body: updated, shouldNotify: true } as const;
+      }, { ttlSeconds: 45 });
+
+      if ("shouldNotify" in result && result.shouldNotify) {
+        await sendTrackingUpdateNotifications(result.body);
       }
-
-      const updated: Order = {
-        ...target,
-        trackingCode: hasTrackingCode ? trackingCode : target.trackingCode,
-        trackingUrl: hasTrackingUrl ? trackingUrl : target.trackingUrl,
-        notes: appendNote(target.notes, "Rastreio atualizado pelo admin."),
-        updatedAt: new Date().toISOString()
-      };
-
-      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
-      await sendOrderStatusNotifications(updated);
-      return json(res, 200, updated);
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "DELETE" && mode === "admin_delete") {
@@ -437,14 +650,18 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
 
-      const orders = await readOrders();
-      const target = orders.find((order) => order.id === id);
-      if (!target) {
-        return json(res, 404, { error: "Pedido nao encontrado." });
-      }
+      const result = await withOrdersLock(async () => {
+        const orders = await readOrders();
+        const target = orders.find((order) => order.id === id);
+        if (!target) {
+          return { status: 404, body: { error: "Pedido nao encontrado." } } as const;
+        }
 
-      await writeOrders(orders.filter((order) => order.id !== id));
-      return json(res, 204, null);
+        await writeOrders(orders.filter((order) => order.id !== id));
+        return { status: 204, body: null } as const;
+      });
+
+      return json(res, result.status, result.body);
     }
 
     const authed = await requireAuthedCustomer(req, res);
@@ -464,9 +681,9 @@ export default async function handler(req: any, res: any) {
 
       const synced = await syncOrderPaymentStatusIfNeeded({
         order: found,
-        orders
+        customerId: authed.id
       });
-      return json(res, 200, synced.order);
+      return json(res, 200, synced);
     }
 
     if (req.method === "POST") {
@@ -476,84 +693,91 @@ export default async function handler(req: any, res: any) {
           return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
         }
 
-        const orders = await readOrders();
-        const target = orders.find((order) => order.id === id && order.customerId === authed.id);
-        if (!target) {
-          return json(res, 404, { error: "Pedido nao encontrado." });
-        }
-        if (!canCustomerRetryPayment(target)) {
-          return json(res, 400, { error: "Pedido nao esta pendente de pagamento." });
-        }
-
-        if (target.paymentMethod === "whatsapp") {
-          return json(res, 400, {
-            error: "Pedidos via WhatsApp devem ser finalizados no atendimento."
-          });
-        }
-
-        if (
-          target.paymentMethod === "pix" &&
-          (target.paymentStatus === "created" ||
-            target.paymentStatus === "pending" ||
-            target.paymentStatus === "in_process") &&
-          target.pixQrCodeBase64
-        ) {
-          return json(res, 200, target);
-        }
-
-        if (
-          target.paymentMethod === "credit_card" &&
-          (target.paymentStatus === "created" ||
-            target.paymentStatus === "pending" ||
-            target.paymentStatus === "in_process") &&
-          target.checkoutUrl
-        ) {
-          return json(res, 200, target);
-        }
-
-        let updated: Order = {
-          ...target,
-          updatedAt: new Date().toISOString()
-        };
-
-        if (target.paymentMethod === "pix") {
-          const cpf = onlyDigits(target.customerCpf || "");
-          if (cpf.length !== 11) {
-            return json(res, 400, {
-              error: "Pedido PIX sem CPF valido. Entre em contato com o suporte."
-            });
+        const result = await withOrdersLock(async () => {
+          const orders = await readOrders();
+          const target = orders.find((order) => order.id === id && order.customerId === authed.id);
+          if (!target) {
+            return { status: 404, body: { error: "Pedido nao encontrado." } } as const;
           }
-          const pix = await createPixPayment({ order: target, cpf, req });
-          const mapped = mapPaymentToOrderStatus(pix.paymentStatus);
-          updated = {
-            ...updated,
-            paymentId: pix.paymentId,
-            paymentStatus: mapped.paymentStatus,
-            status: mapped.orderStatus,
-            pixQrCode: pix.qrCode,
-            pixQrCodeBase64: pix.qrCodeBase64,
-            externalReference: target.id
-          };
-        } else if (target.paymentMethod === "credit_card") {
-          const preference = await createCardPreference({ order: target, req });
-          updated = {
-            ...updated,
-            preferenceId: preference.preferenceId,
-            checkoutUrl: preference.checkoutUrl,
-            paymentStatus: "pending",
-            status: "pending_payment",
-            externalReference: target.id
-          };
-        }
+          if (!canCustomerRetryPayment(target)) {
+            return { status: 400, body: { error: "Pedido nao esta pendente de pagamento." } } as const;
+          }
 
-        await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
-        return json(res, 200, updated);
+          if (target.paymentMethod === "whatsapp") {
+            return {
+              status: 400,
+              body: { error: "Pedidos via WhatsApp devem ser finalizados no atendimento." }
+            } as const;
+          }
+
+          if (
+            target.paymentMethod === "pix" &&
+            (target.paymentStatus === "created" ||
+              target.paymentStatus === "pending" ||
+              target.paymentStatus === "in_process") &&
+            target.pixQrCodeBase64
+          ) {
+            return { status: 200, body: target } as const;
+          }
+
+          if (
+            target.paymentMethod === "credit_card" &&
+            (target.paymentStatus === "created" ||
+              target.paymentStatus === "pending" ||
+              target.paymentStatus === "in_process") &&
+            target.checkoutUrl
+          ) {
+            return { status: 200, body: target } as const;
+          }
+
+          let updated: Order = {
+            ...target,
+            updatedAt: new Date().toISOString()
+          };
+
+          if (target.paymentMethod === "pix") {
+            const cpf = onlyDigits(target.customerCpf || "");
+            if (cpf.length !== 11) {
+              return {
+                status: 400,
+                body: {
+                  error: "Pedido PIX sem CPF valido. Entre em contato com o suporte."
+                }
+              } as const;
+            }
+            const pix = await createPixPayment({ order: target, cpf, req });
+            const mapped = mapPaymentToOrderStatus(pix.paymentStatus);
+            updated = {
+              ...updated,
+              paymentId: pix.paymentId,
+              paymentStatus: mapped.paymentStatus,
+              status: mapped.orderStatus,
+              pixQrCode: pix.qrCode,
+              pixQrCodeBase64: pix.qrCodeBase64,
+              externalReference: target.id
+            };
+          } else if (target.paymentMethod === "credit_card") {
+            const preference = await createCardPreference({ order: target, req });
+            updated = {
+              ...updated,
+              preferenceId: preference.preferenceId,
+              checkoutUrl: preference.checkoutUrl,
+              paymentStatus: "pending",
+              status: "pending_payment",
+              externalReference: target.id
+            };
+          }
+
+          await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+          return { status: 200, body: updated } as const;
+        }, { ttlSeconds: 45 });
+
+        return json(res, result.status, result.body);
       }
 
       const body = (await readJsonBody(req)) as {
         items?: unknown;
         address?: Partial<Address>;
-        shippingAmount?: number;
         couponCode?: string;
         paymentMethod?: CheckoutPaymentMethod;
         cpf?: string;
@@ -561,8 +785,8 @@ export default async function handler(req: any, res: any) {
         saveAddress?: boolean;
       };
 
-      const items = normalizeItems(body.items);
-      if (!items.length) {
+      const requestedItems = normalizeRequestedItems(body.items);
+      if (!requestedItems.length) {
         return json(res, 400, { error: "Carrinho vazio." });
       }
 
@@ -577,8 +801,19 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: "Metodo de pagamento invalido." });
       }
 
-      const subtotal = Number(computeSubtotal(items).toFixed(2));
-      const shippingOriginalAmount = Number(Math.max(0, parseNumber(body.shippingAmount, 0)).toFixed(2));
+      const [products, fragrances] = await Promise.all([readProductsCatalog(), readFragrances()]);
+      const canonicalized = canonicalizeOrderItems({
+        requestedItems,
+        products,
+        fragrances
+      });
+      if (!canonicalized.items) {
+        return json(res, 400, { error: canonicalized.error || "Carrinho invalido." });
+      }
+
+      const items = canonicalized.items;
+      const subtotal = computeSubtotal(items);
+      const shippingOriginalAmount = Number(calculateFreight(address.cep, subtotal).amount.toFixed(2));
       const couponCode = normalizeCouponCode(body.couponCode || "");
       const coupons = couponCode ? await readCoupons() : [];
       const selectedCoupon = couponCode
@@ -655,24 +890,28 @@ export default async function handler(req: any, res: any) {
         order.status = "pending_payment";
       }
 
-      const existingOrders = await readOrders();
-      await writeOrders([order, ...existingOrders]);
+      await withOrdersLock(async () => {
+        const existingOrders = await readOrders();
+        await writeOrders([order, ...existingOrders]);
+      });
 
       if (body.saveAddress !== false) {
-        const customers = await readCustomers();
-        const customerIndex = customers.findIndex((item) => item.id === authed.id);
-        if (customerIndex >= 0) {
-          const current = customers[customerIndex];
-          const alreadySaved = current.addresses.some((saved) => areAddressesEqual(saved, address));
-          if (!alreadySaved) {
-            customers[customerIndex] = {
-              ...current,
-              addresses: [address, ...current.addresses],
-              updatedAt: new Date().toISOString()
-            };
-            await writeCustomers(customers);
+        await withCustomersLock(async () => {
+          const customers = await readCustomers();
+          const customerIndex = customers.findIndex((item) => item.id === authed.id);
+          if (customerIndex >= 0) {
+            const current = customers[customerIndex];
+            const alreadySaved = current.addresses.some((saved) => areAddressesEqual(saved, address));
+            if (!alreadySaved) {
+              customers[customerIndex] = {
+                ...current,
+                addresses: [address, ...current.addresses],
+                updatedAt: new Date().toISOString()
+              };
+              await writeCustomers(customers);
+            }
           }
-        }
+        });
       }
 
       await sendOrderNotifications(order);
@@ -690,24 +929,31 @@ export default async function handler(req: any, res: any) {
       const body = (await readJsonBody(req)) as { reason?: string };
       const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
 
-      const orders = await readOrders();
-      const target = orders.find((order) => order.id === id && order.customerId === authed.id);
-      if (!target) {
-        return json(res, 404, { error: "Pedido nao encontrado." });
-      }
-      if (target.status === "cancelled") {
-        return json(res, 200, target);
-      }
-      if (!canCustomerCancelOrder(target)) {
-        return json(res, 403, {
-          error: "Pedido em preparacao/envio so pode ser cancelado pelo admin."
-        });
-      }
+      const result = await withOrdersLock(async () => {
+        const orders = await readOrders();
+        const target = orders.find((order) => order.id === id && order.customerId === authed.id);
+        if (!target) {
+          return { status: 404, body: { error: "Pedido nao encontrado." } } as const;
+        }
+        if (target.status === "cancelled") {
+          return { status: 200, body: target } as const;
+        }
+        if (!canCustomerCancelOrder(target)) {
+          return {
+            status: 403,
+            body: { error: "Pedido em preparacao/envio so pode ser cancelado pelo admin." }
+          } as const;
+        }
 
-      const updated = await cancelOrderWithPayment(target, reason, "cliente");
-      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
-      await sendOrderStatusNotifications(updated);
-      return json(res, 200, updated);
+        const updated = await cancelOrderWithPayment(target, reason, "cliente");
+        await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+        return { status: 200, body: updated, shouldNotify: true } as const;
+      }, { ttlSeconds: 45 });
+
+      if ("shouldNotify" in result && result.shouldNotify) {
+        await sendOrderStatusNotifications(result.body);
+      }
+      return json(res, result.status, result.body);
     }
 
     res.setHeader("Allow", "GET,POST,PATCH,DELETE");

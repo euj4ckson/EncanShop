@@ -129,6 +129,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
       id: string;
       status: "preparing" | "shipped" | "cancelled";
       reason?: string;
+      note?: string;
       forceUnpaidTransition?: boolean;
     }) => OrderRepo.updateStatusAsAdmin(input),
     onSuccess: async (_, variables) => {
@@ -154,8 +155,13 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
     onError: (error) => showErrorToast("Falha ao excluir pedido", error)
   });
   const updateOrderTrackingMutation = useMutation({
-    mutationFn: (input: { id: string; trackingCode?: string; trackingUrl?: string }) =>
-      OrderRepo.updateTrackingAsAdmin(input),
+    mutationFn: (input: {
+      id: string;
+      trackingCarrier?: string;
+      trackingCode?: string;
+      trackingUrl?: string;
+      note?: string;
+    }) => OrderRepo.updateTrackingAsAdmin(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       await queryClient.invalidateQueries({ queryKey: ["customer-orders"] });
@@ -373,9 +379,15 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                 );
                 if (!confirmed) return;
               }
+              const noteInput = window.prompt(
+                "Observacao para o cliente no e-mail de preparacao (opcional):"
+              );
+              if (noteInput === null) return;
+              const note = noteInput.trim().slice(0, 500);
               updateOrderStatusMutation.mutate({
                 id: order.id,
                 status: "preparing",
+                note,
                 forceUnpaidTransition: !isPaid
               });
             }}
@@ -387,9 +399,15 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                 );
                 if (!confirmed) return;
               }
+              const noteInput = window.prompt(
+                "Observacao para o cliente no e-mail de envio (opcional):"
+              );
+              if (noteInput === null) return;
+              const note = noteInput.trim().slice(0, 500);
               updateOrderStatusMutation.mutate({
                 id: order.id,
                 status: "shipped",
+                note,
                 forceUnpaidTransition: !isPaid
               });
             }}
@@ -412,8 +430,14 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
               }
             }}
             onTracking={(order) => {
+              const currentCarrier = order.trackingCarrier || "";
               const currentCode = order.trackingCode || "";
               const currentUrl = order.trackingUrl || "";
+              const trackingCarrierInput = window.prompt(
+                "Transportadora (ex.: Correios, Jadlog, Total Express). Deixe vazio para remover:",
+                currentCarrier
+              );
+              if (trackingCarrierInput === null) return;
               const trackingCodeInput = window.prompt(
                 "Codigo de rastreio (deixe vazio para remover):",
                 currentCode
@@ -424,10 +448,16 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                 currentUrl
               );
               if (trackingUrlInput === null) return;
+              const noteInput = window.prompt(
+                "Observacao para enviar no e-mail de atualizacao de rastreio (opcional):"
+              );
+              if (noteInput === null) return;
               updateOrderTrackingMutation.mutate({
                 id: order.id,
+                trackingCarrier: trackingCarrierInput.trim() || undefined,
                 trackingCode: trackingCodeInput.trim() || undefined,
-                trackingUrl: trackingUrlInput.trim() || undefined
+                trackingUrl: trackingUrlInput.trim() || undefined,
+                note: noteInput.trim().slice(0, 500) || undefined
               });
             }}
           />
@@ -732,6 +762,11 @@ function AdminOrders({
                 <p className="text-ink-600">
                   Pagamento: <strong>{paymentStatusLabel(order.paymentStatus)}</strong>
                 </p>
+                {order.trackingCarrier ? (
+                  <p className="text-ink-600">
+                    Transportadora: <strong>{order.trackingCarrier}</strong>
+                  </p>
+                ) : null}
                 {order.trackingCode ? (
                   <p className="text-ink-600">
                     Rastreio: <strong>{order.trackingCode}</strong>

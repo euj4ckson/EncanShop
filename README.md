@@ -13,8 +13,14 @@ Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do clie
 - Lista compacta de pedidos na area do cliente, sem pedido aberto por padrao; ao clicar, entra em modo foco (oculta endereco e mostra apenas o pedido selecionado), com opcao de voltar para a tela completa.
 - Retomada de pagamento de pedido pendente/falho pela area do cliente, no mesmo metodo original do pedido.
 - Painel admin com gestao de produtos, fragrancias globais, cupons, status de pedidos e exclusao de pedidos.
+- Painel admin permite adicionar observacao opcional ao marcar pedido como `em preparacao`/`enviado` (a observacao segue no e-mail).
 - Tela pos-pagamento no checkout com ilustracao SVG tematica de vela quando o pagamento e confirmado.
 - E-mails transacionais personalizados por etapa (pedido recebido, pagamento confirmado, em preparacao, enviado, falha e cancelado) com layout visual e ilustracao.
+- Atualizacao de rastreio pelo admin dispara e-mail dedicado para cliente e admin, com codigo/link atualizados.
+- Atualizacao de rastreio tambem permite informar a transportadora (ex.: Correios, Jadlog), exibida no painel, conta do cliente e e-mails.
+- Campos de formulario padronizados (input/select/textarea/botoes), com melhor legibilidade e responsividade no mobile.
+- Backend de pedidos endurecido: itens/precos/variantes/fragrancias e frete sao recalculados no servidor (sem confiar em valores enviados pelo frontend).
+- Escritas sensiveis agora usam lock no Redis (pedidos, perfil de cliente e cupons), reduzindo risco de sobrescrita em concorrencia.
 
 ## Requisitos
 
@@ -56,8 +62,10 @@ Caso nao exista, a aplicacao usa `encantartes123` e exibe um alerta no login.
 - Cupons: criar, ativar/desativar, remover.
 - Pedidos:
   - Atualizar status para `em preparacao`, `enviado` e `cancelado`.
+  - Inserir observacao opcional no momento de atualizar para `em preparacao`/`enviado`.
   - Se o pedido estiver sem pagamento aprovado, o painel pede confirmacao explicita antes de avancar para `em preparacao`/`enviado`.
-  - Atualizar codigo e link de rastreio para exibicao ao cliente.
+  - Atualizar transportadora, codigo e link de rastreio para exibicao ao cliente.
+  - Atualizacao de rastreio dispara notificacao por e-mail para cliente e admin.
   - Excluir pedido com confirmacao previa (somente admin).
 - Configuracoes:
   - Botao para disparar teste das notificacoes de e-mail (pedido realizado, pagamento confirmado, em preparacao e enviado).
@@ -109,6 +117,8 @@ Observacoes de seguranca:
 
 - Em producao, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` sao obrigatorios.
 - Sem `MP_WEBHOOK_SECRET` em producao, o webhook e rejeitado por seguranca.
+- Criacao de pedido ignora preco/frete vindo do cliente e calcula com base no catalogo salvo no Redis + regra de frete por CEP.
+- Transicoes de status no admin seguem validacao de fluxo para evitar regressao de estado (ex.: `enviado` nao volta para `em preparacao`).
 - Para envio de e-mails via Resend, o remetente (`ORDER_EMAIL_FROM`) precisa estar em dominio/verificacao aceita pelo Resend.
 - Se estiver usando `onboarding@resend.dev`, o Resend limita destinatarios; para cliente final, configure `SMTP_*` (fallback automatico).
 - Sem dominio proprio no Resend, o sistema pode usar fallback SMTP automaticamente quando `SMTP_*` estiver configurado.

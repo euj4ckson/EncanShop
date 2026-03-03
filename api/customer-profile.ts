@@ -2,7 +2,7 @@ import type { Address } from "../src/types/customer";
 import { getQueryParam, json, normalizeCep, onlyDigits, readJsonBody } from "./_lib/http.js";
 import { requireAuthedCustomer } from "./_lib/customerAuth.js";
 import { generateId } from "./_lib/security.js";
-import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store.js";
+import { readCustomers, stripCustomerSecret, withCustomersLock, writeCustomers } from "./_lib/store.js";
 
 function validateAddress(address: Partial<Address>): string | null {
   if (normalizeCep(address.cep || "").length !== 8) return "CEP invalido.";
@@ -44,14 +44,12 @@ export default async function handler(req: any, res: any) {
     const authed = await requireAuthedCustomer(req, res);
     if (!authed) return;
 
-    const customers = await readCustomers();
-    const customerIndex = customers.findIndex((item) => item.id === authed.id);
-    if (customerIndex < 0) {
-      return json(res, 404, { error: "Cliente nao encontrado." });
-    }
-    const customer = customers[customerIndex];
-
     if (req.method === "GET") {
+      const customers = await readCustomers();
+      const customer = customers.find((item) => item.id === authed.id);
+      if (!customer) {
+        return json(res, 404, { error: "Cliente nao encontrado." });
+      }
       return json(res, 200, stripCustomerSecret(customer));
     }
 
@@ -63,38 +61,60 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: "Nada para atualizar." });
       }
 
-      const name = hasName ? (body.name || "").trim() : customer.name;
-      if (hasName && name.length < 2) {
-        return json(res, 400, { error: "Informe um nome valido." });
-      }
+      const result = await withCustomersLock(async () => {
+        const customers = await readCustomers();
+        const customerIndex = customers.findIndex((item) => item.id === authed.id);
+        if (customerIndex < 0) {
+          return { status: 404, body: { error: "Cliente nao encontrado." } } as const;
+        }
 
-      const phone = hasPhone ? normalizePhone(body.phone || "") : customer.phone || "";
-      const phoneError = validatePhone(phone);
-      if (phoneError) {
-        return json(res, 400, { error: phoneError });
-      }
+        const customer = customers[customerIndex];
+        const name = hasName ? (body.name || "").trim() : customer.name;
+        if (hasName && name.length < 2) {
+          return { status: 400, body: { error: "Informe um nome valido." } } as const;
+        }
 
-      const updated = {
-        ...customer,
-        name,
-        phone: phone || undefined,
-        updatedAt: new Date().toISOString()
-      };
-      customers[customerIndex] = updated;
-      await writeCustomers(customers);
-      return json(res, 200, stripCustomerSecret(updated));
+        const phone = hasPhone ? normalizePhone(body.phone || "") : customer.phone || "";
+        const phoneError = validatePhone(phone);
+        if (phoneError) {
+          return { status: 400, body: { error: phoneError } } as const;
+        }
+
+        const updated = {
+          ...customer,
+          name,
+          phone: phone || undefined,
+          updatedAt: new Date().toISOString()
+        };
+        customers[customerIndex] = updated;
+        await writeCustomers(customers);
+        return { status: 200, body: stripCustomerSecret(updated) } as const;
+      });
+
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "POST") {
       const mode = getQueryParam(req.query?.mode);
+      if (mode !== "address") {
+        return json(res, 400, { error: "Modo invalido." });
+      }
+
       const body = (await readJsonBody(req)) as { address?: Partial<Address> };
       const addressInput = body.address || {};
 
-      if (mode === "address") {
+      const result = await withCustomersLock(async () => {
+        const customers = await readCustomers();
+        const customerIndex = customers.findIndex((item) => item.id === authed.id);
+        if (customerIndex < 0) {
+          return { status: 404, body: { error: "Cliente nao encontrado." } } as const;
+        }
+
+        const customer = customers[customerIndex];
         const normalized = normalizeAddress(addressInput);
         const error = validateAddress(normalized);
         if (error) {
-          return json(res, 400, { error });
+          return { status: 400, body: { error } } as const;
         }
 
         const updated = {
@@ -104,10 +124,10 @@ export default async function handler(req: any, res: any) {
         };
         customers[customerIndex] = updated;
         await writeCustomers(customers);
-        return json(res, 201, normalized);
-      }
+        return { status: 201, body: normalized } as const;
+      });
 
-      return json(res, 400, { error: "Modo invalido." });
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "PATCH") {
@@ -117,28 +137,40 @@ export default async function handler(req: any, res: any) {
       }
       const addressId = getQueryParam(req.query?.id);
       if (!addressId) {
-        return json(res, 400, { error: "Parâmetro 'id' é obrigatório." });
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
+
       const body = (await readJsonBody(req)) as { address?: Partial<Address> };
-      const existing = customer.addresses.find((item) => item.id === addressId);
-      if (!existing) {
-        return json(res, 404, { error: "Endereco nao encontrado." });
-      }
+      const result = await withCustomersLock(async () => {
+        const customers = await readCustomers();
+        const customerIndex = customers.findIndex((item) => item.id === authed.id);
+        if (customerIndex < 0) {
+          return { status: 404, body: { error: "Cliente nao encontrado." } } as const;
+        }
 
-      const normalized = normalizeAddress(body.address || {}, existing);
-      const error = validateAddress(normalized);
-      if (error) {
-        return json(res, 400, { error });
-      }
+        const customer = customers[customerIndex];
+        const existing = customer.addresses.find((item) => item.id === addressId);
+        if (!existing) {
+          return { status: 404, body: { error: "Endereco nao encontrado." } } as const;
+        }
 
-      const updated = {
-        ...customer,
-        addresses: customer.addresses.map((item) => (item.id === addressId ? normalized : item)),
-        updatedAt: new Date().toISOString()
-      };
-      customers[customerIndex] = updated;
-      await writeCustomers(customers);
-      return json(res, 200, normalized);
+        const normalized = normalizeAddress(body.address || {}, existing);
+        const error = validateAddress(normalized);
+        if (error) {
+          return { status: 400, body: { error } } as const;
+        }
+
+        const updated = {
+          ...customer,
+          addresses: customer.addresses.map((item) => (item.id === addressId ? normalized : item)),
+          updatedAt: new Date().toISOString()
+        };
+        customers[customerIndex] = updated;
+        await writeCustomers(customers);
+        return { status: 200, body: normalized } as const;
+      });
+
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "DELETE") {
@@ -148,17 +180,28 @@ export default async function handler(req: any, res: any) {
       }
       const addressId = getQueryParam(req.query?.id);
       if (!addressId) {
-        return json(res, 400, { error: "Parâmetro 'id' é obrigatório." });
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
 
-      const updated = {
-        ...customer,
-        addresses: customer.addresses.filter((item) => item.id !== addressId),
-        updatedAt: new Date().toISOString()
-      };
-      customers[customerIndex] = updated;
-      await writeCustomers(customers);
-      return json(res, 204, null);
+      const result = await withCustomersLock(async () => {
+        const customers = await readCustomers();
+        const customerIndex = customers.findIndex((item) => item.id === authed.id);
+        if (customerIndex < 0) {
+          return { status: 404, body: { error: "Cliente nao encontrado." } } as const;
+        }
+
+        const customer = customers[customerIndex];
+        const updated = {
+          ...customer,
+          addresses: customer.addresses.filter((item) => item.id !== addressId),
+          updatedAt: new Date().toISOString()
+        };
+        customers[customerIndex] = updated;
+        await writeCustomers(customers);
+        return { status: 204, body: null } as const;
+      });
+
+      return json(res, result.status, result.body);
     }
 
     res.setHeader("Allow", "GET,PUT,POST,PATCH,DELETE");
@@ -168,4 +211,3 @@ export default async function handler(req: any, res: any) {
     return json(res, 500, { error: message });
   }
 }
-

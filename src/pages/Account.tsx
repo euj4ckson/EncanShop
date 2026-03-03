@@ -296,12 +296,14 @@ export function Account() {
                 <Button
                   variant={mode === "login" ? "primary" : "outline"}
                   onClick={() => setMode("login")}
+                  className="flex-1"
                 >
                   Login
                 </Button>
                 <Button
                   variant={mode === "register" ? "primary" : "outline"}
                   onClick={() => setMode("register")}
+                  className="flex-1"
                 >
                   Cadastro
                 </Button>
@@ -414,7 +416,7 @@ export function Account() {
       selectedOrder.paymentStatus === "in_process");
 
   const selectedOrderDetails = selectedOrder ? (
-    <section className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
+    <section className="overflow-hidden rounded-2xl border border-sand-200/70 bg-white/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(selectedOrder.id)}</p>
@@ -431,7 +433,7 @@ export function Account() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
         <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">Status de envio</p>
           <div className="mt-3 space-y-2">
@@ -450,8 +452,13 @@ export function Account() {
           </div>
 
           <div className="mt-3 rounded-xl border border-sand-200/70 bg-white/80 p-3 text-xs text-ink-700">
-            {selectedOrder.trackingCode ? (
+            {selectedOrder.trackingCarrier ? (
               <p>
+                Transportadora: <strong>{selectedOrder.trackingCarrier}</strong>
+              </p>
+            ) : null}
+            {selectedOrder.trackingCode ? (
+              <p className={selectedOrder.trackingCarrier ? "mt-1" : undefined}>
                 Codigo de rastreio: <strong>{selectedOrder.trackingCode}</strong>
               </p>
             ) : (
@@ -576,7 +583,7 @@ export function Account() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl text-ink-900">Minha conta</h1>
-          <p className="text-sm text-ink-600">{customer.customer.email}</p>
+          <p className="break-all text-sm text-ink-600">{customer.customer.email}</p>
           <p className="text-sm text-ink-600">
             {customer.customer.phone ? formatPhoneBR(customer.customer.phone) : "Telefone nao informado"}
           </p>
@@ -625,7 +632,7 @@ export function Account() {
                     type="button"
                     variant="outline"
                     onClick={() => void handleSavePhone()}
-                    disabled={isSavingPhone || (profilePhone && onlyDigits(profilePhone).length < 10)}
+                    disabled={isSavingPhone || (!!profilePhone && onlyDigits(profilePhone).length < 10)}
                   >
                     {isSavingPhone ? "Salvando..." : "Salvar telefone"}
                   </Button>
@@ -665,7 +672,7 @@ export function Account() {
                   value={addressDraft.label}
                   onChange={(event) => setAddressDraft((prev) => ({ ...prev, label: event.target.value }))}
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     placeholder="CEP"
                     value={addressDraft.cep}
@@ -687,7 +694,7 @@ export function Account() {
                   onChange={(event) => setAddressDraft((prev) => ({ ...prev, street: event.target.value }))}
                   required
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     placeholder="Bairro"
                     value={addressDraft.neighborhood}
@@ -703,7 +710,7 @@ export function Account() {
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     placeholder="UF"
                     value={addressDraft.state}

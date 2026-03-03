@@ -130,7 +130,7 @@ function LastOrderCard({
             alt="QR Code PIX"
             className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
           />
-          <Input value={order.pixQrCode || ""} readOnly />
+          <Input value={order.pixQrCode || ""} readOnly className="text-xs" />
         </div>
       ) : null}
       <div className="mt-3 rounded-xl border border-sand-200/70 bg-sand-50/70 p-3">
@@ -654,7 +654,7 @@ export function Cart() {
 
           <div className="mt-4 space-y-2">
             <Label htmlFor="checkout-coupon">Cupom de desconto</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="checkout-coupon"
                 value={couponCode}
@@ -664,6 +664,7 @@ export function Cart() {
               <Button
                 type="button"
                 variant="outline"
+                className="sm:w-auto"
                 onClick={() => void applyCoupon(couponCode)}
                 disabled={isApplyingCoupon}
               >

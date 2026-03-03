@@ -2,7 +2,7 @@ import type { Coupon, CouponType, CouponPreview } from "../src/types/coupon";
 import { calculateCouponDiscount, normalizeCouponCode, validateCouponPayload } from "./_lib/coupons.js";
 import { getQueryParam, json, parseNumber, readHeader, readJsonBody } from "./_lib/http.js";
 import { generateId } from "./_lib/security.js";
-import { readCoupons, writeCoupons } from "./_lib/store.js";
+import { readCoupons, withCouponsLock, writeCoupons } from "./_lib/store.js";
 
 function getAdminPasswordFromEnv(): string {
   const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
@@ -102,24 +102,28 @@ export default async function handler(req: any, res: any) {
         return json(res, 400, { error: payloadError });
       }
 
-      const coupons = await readCoupons();
-      const exists = coupons.some((item) => item.code === next.code);
-      if (exists) {
-        return json(res, 409, { error: "Ja existe um cupom com esse codigo." });
-      }
+      const result = await withCouponsLock(async () => {
+        const coupons = await readCoupons();
+        const exists = coupons.some((item) => item.code === next.code);
+        if (exists) {
+          return { status: 409, body: { error: "Ja existe um cupom com esse codigo." } } as const;
+        }
 
-      const now = new Date().toISOString();
-      const created: Coupon = {
-        id: generateId("cup"),
-        code: next.code,
-        type: next.type,
-        value: next.type === "free_shipping" ? 0 : Number(next.value.toFixed(2)),
-        active: next.active,
-        createdAt: now,
-        updatedAt: now
-      };
-      await writeCoupons([created, ...coupons]);
-      return json(res, 201, created);
+        const now = new Date().toISOString();
+        const created: Coupon = {
+          id: generateId("cup"),
+          code: next.code,
+          type: next.type,
+          value: next.type === "free_shipping" ? 0 : Number(next.value.toFixed(2)),
+          active: next.active,
+          createdAt: now,
+          updatedAt: now
+        };
+        await writeCoupons([created, ...coupons]);
+        return { status: 201, body: created } as const;
+      });
+
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "PUT") {
@@ -135,54 +139,58 @@ export default async function handler(req: any, res: any) {
         active?: unknown;
       };
 
-      const coupons = await readCoupons();
-      const existing = coupons.find((item) => item.id === id);
-      if (!existing) {
-        return json(res, 404, { error: "Cupom nao encontrado." });
-      }
+      const result = await withCouponsLock(async () => {
+        const coupons = await readCoupons();
+        const existing = coupons.find((item) => item.id === id);
+        if (!existing) {
+          return { status: 404, body: { error: "Cupom nao encontrado." } } as const;
+        }
 
-      const normalizedCode =
-        body.code !== undefined
-          ? normalizeCouponCode(String(body.code || ""))
-          : existing.code;
-      const normalizedType =
-        body.type !== undefined ? parseCouponType(body.type) : existing.type;
-      const normalizedValue =
-        body.value !== undefined ? Math.max(0, parseNumber(body.value, 0)) : existing.value;
-      const normalizedActive = body.active !== undefined ? body.active !== false : existing.active;
+        const normalizedCode =
+          body.code !== undefined
+            ? normalizeCouponCode(String(body.code || ""))
+            : existing.code;
+        const normalizedType =
+          body.type !== undefined ? parseCouponType(body.type) : existing.type;
+        const normalizedValue =
+          body.value !== undefined ? Math.max(0, parseNumber(body.value, 0)) : existing.value;
+        const normalizedActive = body.active !== undefined ? body.active !== false : existing.active;
 
-      if (!normalizedType) {
-        return json(res, 400, { error: "Tipo de cupom invalido." });
-      }
+        if (!normalizedType) {
+          return { status: 400, body: { error: "Tipo de cupom invalido." } } as const;
+        }
 
-      const payloadError = validateCouponPayload({
-        code: normalizedCode,
-        type: normalizedType,
-        value: normalizedValue
+        const payloadError = validateCouponPayload({
+          code: normalizedCode,
+          type: normalizedType,
+          value: normalizedValue
+        });
+        if (payloadError) {
+          return { status: 400, body: { error: payloadError } } as const;
+        }
+
+        const duplicate = coupons.some(
+          (item) => item.id !== id && item.code === normalizedCode
+        );
+        if (duplicate) {
+          return { status: 409, body: { error: "Ja existe um cupom com esse codigo." } } as const;
+        }
+
+        const updated: Coupon = {
+          ...existing,
+          code: normalizedCode,
+          type: normalizedType,
+          value:
+            normalizedType === "free_shipping" ? 0 : Number(normalizedValue.toFixed(2)),
+          active: normalizedActive,
+          updatedAt: new Date().toISOString()
+        };
+
+        await writeCoupons(coupons.map((item) => (item.id === id ? updated : item)));
+        return { status: 200, body: updated } as const;
       });
-      if (payloadError) {
-        return json(res, 400, { error: payloadError });
-      }
 
-      const duplicate = coupons.some(
-        (item) => item.id !== id && item.code === normalizedCode
-      );
-      if (duplicate) {
-        return json(res, 409, { error: "Ja existe um cupom com esse codigo." });
-      }
-
-      const updated: Coupon = {
-        ...existing,
-        code: normalizedCode,
-        type: normalizedType,
-        value:
-          normalizedType === "free_shipping" ? 0 : Number(normalizedValue.toFixed(2)),
-        active: normalizedActive,
-        updatedAt: new Date().toISOString()
-      };
-
-      await writeCoupons(coupons.map((item) => (item.id === id ? updated : item)));
-      return json(res, 200, updated);
+      return json(res, result.status, result.body);
     }
 
     if (req.method === "DELETE") {
@@ -191,8 +199,10 @@ export default async function handler(req: any, res: any) {
       if (!id) {
         return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
-      const coupons = await readCoupons();
-      await writeCoupons(coupons.filter((item) => item.id !== id));
+      await withCouponsLock(async () => {
+        const coupons = await readCoupons();
+        await writeCoupons(coupons.filter((item) => item.id !== id));
+      });
       return json(res, 204, null);
     }
 

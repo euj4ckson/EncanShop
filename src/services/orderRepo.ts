@@ -81,6 +81,7 @@ export const OrderRepo = {
     id: string;
     status: "preparing" | "shipped" | "cancelled";
     reason?: string;
+    note?: string;
     forceUnpaidTransition?: boolean;
   }): Promise<Order> {
     return requestJson<Order>(
@@ -91,6 +92,7 @@ export const OrderRepo = {
         body: JSON.stringify({
           status: input.status,
           reason: input.reason,
+          note: input.note,
           forceUnpaidTransition: input.forceUnpaidTransition
         })
       },
@@ -100,8 +102,10 @@ export const OrderRepo = {
 
   async updateTrackingAsAdmin(input: {
     id: string;
+    trackingCarrier?: string;
     trackingCode?: string;
     trackingUrl?: string;
+    note?: string;
   }): Promise<Order> {
     return requestJson<Order>(
       "/api/orders",
@@ -109,8 +113,10 @@ export const OrderRepo = {
         method: "PATCH",
         headers: adminHeaders(),
         body: JSON.stringify({
+          trackingCarrier: input.trackingCarrier,
           trackingCode: input.trackingCode,
-          trackingUrl: input.trackingUrl
+          trackingUrl: input.trackingUrl,
+          note: input.note
         })
       },
       { mode: "admin_tracking", id: input.id }
