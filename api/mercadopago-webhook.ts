@@ -67,6 +67,8 @@ export default async function handler(req: any, res: any) {
     }
 
     const prevStatus = target.status;
+    const prevPaymentStatus = target.paymentStatus;
+    const prevPaymentId = target.paymentId || "";
     const mapped = mapPaymentToOrderStatus(payment.status);
     const wasCancelled = target.status === "cancelled";
     const isOperationalFlow = target.status === "preparing" || target.status === "shipped";
@@ -95,9 +97,17 @@ export default async function handler(req: any, res: any) {
       updatedAt: new Date().toISOString()
     };
 
+    const hasChanged =
+      prevStatus !== updated.status ||
+      prevPaymentStatus !== updated.paymentStatus ||
+      prevPaymentId !== (updated.paymentId || "");
+    if (!hasChanged) {
+      return json(res, 200, { ok: true, unchanged: true });
+    }
+
     await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
 
-    if (prevStatus !== updated.status) {
+    if (prevStatus !== updated.status || prevPaymentStatus !== updated.paymentStatus) {
       await notifyStatusChange(updated.id);
     }
 

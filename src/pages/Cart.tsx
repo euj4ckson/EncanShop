@@ -303,6 +303,21 @@ export function Cart() {
         try {
           const refreshed = await OrderRepo.getById(lastOrder.id);
           if (refreshed) {
+            if (refreshed.status !== lastOrder.status) {
+              if (refreshed.status === "preparing" || refreshed.status === "paid") {
+                toast({
+                  title: "Pagamento confirmado",
+                  description: "Seu pedido foi pago e esta em preparacao.",
+                  variant: "success"
+                });
+              } else if (refreshed.status === "failed" || refreshed.status === "cancelled") {
+                toast({
+                  title: "Pagamento nao concluido",
+                  description: "Verifique o status do pedido e tente novamente se necessario.",
+                  variant: "error"
+                });
+              }
+            }
             setLastOrder(refreshed);
             if (refreshed.status !== "pending_payment") {
               window.clearInterval(timer);
@@ -314,7 +329,7 @@ export function Cart() {
       })();
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [lastOrder]);
+  }, [lastOrder, toast]);
 
   const handleCreateOrder = async () => {
     if (!customer.isAuthed) {

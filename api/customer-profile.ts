@@ -1,5 +1,5 @@
 import type { Address } from "../src/types/customer";
-import { getQueryParam, json, normalizeCep, readJsonBody } from "./_lib/http.js";
+import { getQueryParam, json, normalizeCep, onlyDigits, readJsonBody } from "./_lib/http.js";
 import { requireAuthedCustomer } from "./_lib/customerAuth.js";
 import { generateId } from "./_lib/security.js";
 import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store.js";
@@ -29,6 +29,16 @@ function normalizeAddress(input: Partial<Address>, existing?: Address): Address 
   };
 }
 
+function normalizePhone(value: string): string {
+  return onlyDigits(value).slice(0, 13);
+}
+
+function validatePhone(phone: string): string | null {
+  if (!phone) return null;
+  if (phone.length < 10) return "Telefone invalido. Informe DDD + numero.";
+  return null;
+}
+
 export default async function handler(req: any, res: any) {
   try {
     const authed = await requireAuthedCustomer(req, res);
@@ -46,15 +56,28 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "PUT") {
-      const body = (await readJsonBody(req)) as { name?: string };
-      const name = (body.name || "").trim();
-      if (name.length < 2) {
+      const body = (await readJsonBody(req)) as { name?: string; phone?: string };
+      const hasName = body.name !== undefined;
+      const hasPhone = body.phone !== undefined;
+      if (!hasName && !hasPhone) {
+        return json(res, 400, { error: "Nada para atualizar." });
+      }
+
+      const name = hasName ? (body.name || "").trim() : customer.name;
+      if (hasName && name.length < 2) {
         return json(res, 400, { error: "Informe um nome valido." });
+      }
+
+      const phone = hasPhone ? normalizePhone(body.phone || "") : customer.phone || "";
+      const phoneError = validatePhone(phone);
+      if (phoneError) {
+        return json(res, 400, { error: phoneError });
       }
 
       const updated = {
         ...customer,
         name,
+        phone: phone || undefined,
         updatedAt: new Date().toISOString()
       };
       customers[customerIndex] = updated;

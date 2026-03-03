@@ -16,6 +16,7 @@ import {
   cancelPaymentById,
   createCardPreference,
   createPixPayment,
+  getPaymentById,
   mapPaymentToOrderStatus,
   refundPaymentById
 } from "./_lib/mercadopago.js";
@@ -118,6 +119,23 @@ function parseAdminStatus(value: unknown): AdminOrderStatus | null {
   return null;
 }
 
+function withCustomerPhoneFallback(orders: Order[], customers: Array<{ id: string; phone?: string }>): Order[] {
+  if (!orders.length || !customers.length) return orders;
+  const phoneByCustomerId = new Map<string, string>();
+  for (const customer of customers) {
+    const phone = onlyDigits(customer.phone || "");
+    if (customer.id && phone) {
+      phoneByCustomerId.set(customer.id, phone);
+    }
+  }
+  return orders.map((order) => {
+    if (order.customerPhone || !order.customerId) return order;
+    const phone = phoneByCustomerId.get(order.customerId);
+    if (!phone) return order;
+    return { ...order, customerPhone: phone };
+  });
+}
+
 async function sendOrderNotifications(order: Order): Promise<void> {
   const email = buildOrderEmail(order);
   await Promise.allSettled([
@@ -209,6 +227,76 @@ function updateOrderStatusByAdmin(target: Order, nextStatus: Exclude<AdminOrderS
   };
 }
 
+function shouldSyncPaymentStatus(order: Order): boolean {
+  if (!order.paymentId) return false;
+  if (order.paymentMethod === "whatsapp") return false;
+  const isPendingPaymentStatus =
+    order.paymentStatus === "created" ||
+    order.paymentStatus === "pending" ||
+    order.paymentStatus === "in_process";
+  return isPendingPaymentStatus || order.status === "pending_payment";
+}
+
+async function syncOrderPaymentStatusIfNeeded(input: {
+  order: Order;
+  orders: Order[];
+}): Promise<{ order: Order; orders: Order[] }> {
+  const { order, orders } = input;
+  if (!shouldSyncPaymentStatus(order)) {
+    return { order, orders };
+  }
+
+  try {
+    const payment = await getPaymentById(order.paymentId || "");
+    const mapped = mapPaymentToOrderStatus(payment.status);
+    const wasCancelled = order.status === "cancelled";
+    const isOperationalFlow = order.status === "preparing" || order.status === "shipped";
+    let nextPaymentStatus = mapped.paymentStatus;
+    let nextOrderStatus = mapped.orderStatus;
+
+    if (wasCancelled && payment.status === "approved") {
+      await refundPaymentById(String(payment.id), order.total);
+      nextPaymentStatus = "refunded";
+      nextOrderStatus = "cancelled";
+    } else if (wasCancelled) {
+      nextOrderStatus = "cancelled";
+      if (payment.status === "refunded") {
+        nextPaymentStatus = "refunded";
+      }
+    } else if (isOperationalFlow) {
+      const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
+      nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : order.status;
+    }
+
+    const changed =
+      order.paymentId !== String(payment.id) ||
+      order.paymentStatus !== nextPaymentStatus ||
+      order.status !== nextOrderStatus;
+
+    if (!changed) {
+      return { order, orders };
+    }
+
+    const updated: Order = {
+      ...order,
+      paymentId: String(payment.id),
+      paymentStatus: nextPaymentStatus,
+      status: nextOrderStatus,
+      updatedAt: new Date().toISOString()
+    };
+    const nextOrders = orders.map((item) => (item.id === order.id ? updated : item));
+    await writeOrders(nextOrders);
+
+    if (order.status !== updated.status || order.paymentStatus !== updated.paymentStatus) {
+      await sendOrderStatusNotifications(updated);
+    }
+
+    return { order: updated, orders: nextOrders };
+  } catch {
+    return { order, orders };
+  }
+}
+
 export default async function handler(req: any, res: any) {
   try {
     const mode = getQueryParam(req.query?.mode);
@@ -216,7 +304,8 @@ export default async function handler(req: any, res: any) {
     if (req.method === "GET" && mode === "admin_all") {
       assertAdminAccess(req);
       const orders = await readOrders();
-      return json(res, 200, orders);
+      const customers = await readCustomers();
+      return json(res, 200, withCustomerPhoneFallback(orders, customers));
     }
 
     if (req.method === "PATCH" && mode === "admin_update") {
@@ -290,7 +379,15 @@ export default async function handler(req: any, res: any) {
         return json(res, 200, ownOrders);
       }
       const found = ownOrders.find((order) => order.id === id);
-      return json(res, 200, found || null);
+      if (!found) {
+        return json(res, 200, null);
+      }
+
+      const synced = await syncOrderPaymentStatusIfNeeded({
+        order: found,
+        orders
+      });
+      return json(res, 200, synced.order);
     }
 
     if (req.method === "POST") {
@@ -435,6 +532,7 @@ export default async function handler(req: any, res: any) {
         customerId: authed.id,
         customerName: authed.name,
         customerEmail: authed.email,
+        customerPhone: onlyDigits((authed as any).phone || "") || undefined,
         customerCpf: onlyDigits(body.cpf || ""),
         items,
         address,

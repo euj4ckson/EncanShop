@@ -8,10 +8,12 @@ type CustomerContextValue = {
   isLoading: boolean;
   isAuthed: boolean;
   login: (input: { email: string; password: string }) => Promise<void>;
-  register: (input: { name: string; email: string; password: string }) => Promise<void>;
+  register: (input: { name: string; email: string; password: string; phone?: string }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
+  updatePhone: (phone: string) => Promise<void>;
+  updateProfile: (input: { name?: string; phone?: string }) => Promise<void>;
   saveAddress: (address: Partial<Address>, id?: string) => Promise<void>;
   removeAddress: (id: string) => Promise<void>;
 };
@@ -66,6 +68,14 @@ export function CustomerProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateName: async (name) => {
         const updated = await CustomerRepo.updateName(name);
+        setCustomer(updated);
+      },
+      updatePhone: async (phone) => {
+        const updated = await CustomerRepo.updateProfile({ phone });
+        setCustomer(updated);
+      },
+      updateProfile: async (input) => {
+        const updated = await CustomerRepo.updateProfile(input);
         setCustomer(updated);
       },
       saveAddress: async (address, id) => {

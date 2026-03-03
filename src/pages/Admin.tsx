@@ -19,6 +19,7 @@ import { normalizeInstagram, normalizeWhatsapp } from "@/lib/contacts";
 import { FragranceRepo } from "@/services/fragranceRepo";
 import { OrderRepo } from "@/services/orderRepo";
 import { CouponRepo } from "@/services/couponRepo";
+import { AdminRepo } from "@/services/adminRepo";
 import type { Coupon, CouponType } from "@/types/coupon";
 
 export function Admin({ onLogout }: { onLogout: () => void }) {
@@ -689,7 +690,8 @@ function AdminOrders({
                   </p>
                 </div>
                 <p className="text-ink-700">
-                  {order.customerName} ({order.customerEmail})
+                  {order.customerName} ({order.customerEmail}) -{" "}
+                  {order.customerPhone ? formatPhoneBR(order.customerPhone) : "Telefone nao informado"}
                 </p>
                 <p className="text-ink-700">Total: R$ {order.total.toFixed(2)}</p>
                 <p className="text-ink-600">
@@ -750,6 +752,8 @@ function AdminSettings() {
   const { toast } = useToast();
   const [whatsapp, setWhatsapp] = React.useState(formatPhoneBR(data?.whatsapp ?? ""));
   const [instagram, setInstagram] = React.useState(data?.instagram ?? "");
+  const [testCustomerEmail, setTestCustomerEmail] = React.useState("");
+  const [testCustomerName, setTestCustomerName] = React.useState("Cliente Teste");
 
   React.useEffect(() => {
     setWhatsapp(formatPhoneBR(data?.whatsapp ?? ""));
@@ -765,6 +769,30 @@ function AdminSettings() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast({ title: "Contatos atualizados", variant: "success" });
+    }
+  });
+
+  const testEmailMutation = useMutation({
+    mutationFn: (input: { customerEmail?: string; customerName?: string }) =>
+      AdminRepo.sendEmailTest(input),
+    onSuccess: (response) => {
+      const failedCount = response.attempts - response.successCount;
+      const variant = response.ok ? "success" : "error";
+      toast({
+        title: response.ok ? "Teste de e-mail enviado" : "Teste de e-mail com falhas",
+        description: `${response.successCount}/${response.attempts} envios concluidos. Admin: ${response.adminEmail}. Cliente teste: ${response.customerEmail}.`,
+        variant
+      });
+      if (failedCount === 0) {
+        setTestCustomerEmail("");
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Falha ao enviar teste de e-mail",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "error"
+      });
     }
   });
 
@@ -793,6 +821,50 @@ function AdminSettings() {
         <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="mt-2">
           {mutation.isPending ? "Salvando..." : "Salvar"}
         </Button>
+
+        <div className="mt-6 rounded-2xl border border-sand-200/70 bg-white/80 p-4">
+          <h3 className="font-serif text-xl text-ink-900">Teste de e-mails</h3>
+          <p className="mt-1 text-sm text-ink-600">
+            Dispara as 4 notificações de teste (pedido realizado, pagamento confirmado, em preparação e enviado).
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div>
+              <Label htmlFor="test-customer-email">E-mail do cliente (opcional)</Label>
+              <Input
+                id="test-customer-email"
+                value={testCustomerEmail}
+                onChange={(event) => setTestCustomerEmail(event.target.value)}
+                placeholder="cliente@exemplo.com"
+              />
+              <p className="mt-1 text-xs text-ink-500">
+                Se vazio, o teste envia para o mesmo e-mail admin.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="test-customer-name">Nome do cliente (opcional)</Label>
+              <Input
+                id="test-customer-name"
+                value={testCustomerName}
+                onChange={(event) => setTestCustomerName(event.target.value)}
+                placeholder="Cliente Teste"
+              />
+            </div>
+          </div>
+
+          <Button
+            className="mt-4"
+            onClick={() =>
+              testEmailMutation.mutate({
+                customerEmail: testCustomerEmail.trim() || undefined,
+                customerName: testCustomerName.trim() || undefined
+              })
+            }
+            disabled={testEmailMutation.isPending}
+          >
+            {testEmailMutation.isPending ? "Enviando teste..." : "Enviar teste de notificações"}
+          </Button>
+        </div>
       </div>
     </div>
   );
