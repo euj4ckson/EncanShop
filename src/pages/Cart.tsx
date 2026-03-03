@@ -114,7 +114,7 @@ function LastOrderCard({
           <img
             src={paymentConfirmedCandle}
             alt="Ilustracao de vela com pagamento confirmado"
-            className="mx-auto w-full max-w-[280px]"
+            className="mx-auto h-auto w-full max-w-[280px] object-contain"
             loading="lazy"
           />
           <p className="mt-2">
