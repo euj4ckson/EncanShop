@@ -81,13 +81,18 @@ export const OrderRepo = {
     id: string;
     status: "preparing" | "shipped" | "cancelled";
     reason?: string;
+    forceUnpaidTransition?: boolean;
   }): Promise<Order> {
     return requestJson<Order>(
       "/api/orders",
       {
         method: "PATCH",
         headers: adminHeaders(),
-        body: JSON.stringify({ status: input.status, reason: input.reason })
+        body: JSON.stringify({
+          status: input.status,
+          reason: input.reason,
+          forceUnpaidTransition: input.forceUnpaidTransition
+        })
       },
       { mode: "admin_update", id: input.id }
     );

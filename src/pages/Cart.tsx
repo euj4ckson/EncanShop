@@ -152,7 +152,9 @@ export function Cart() {
 
   const shippingAmount = appliedCoupon ? appliedCoupon.shippingAmount : shippingQuote?.amount ?? 0;
   const discountAmount = appliedCoupon?.discountAmount ?? 0;
-  const total = Number(Math.max(0, subtotal + shippingAmount - discountAmount).toFixed(2));
+  const total = appliedCoupon
+    ? appliedCoupon.total
+    : Number(Math.max(0, subtotal + shippingAmount).toFixed(2));
 
   const applySavedAddress = React.useCallback(
     (saved?: Address) => {

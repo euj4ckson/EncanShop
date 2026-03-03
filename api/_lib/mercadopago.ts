@@ -273,7 +273,7 @@ export function mapPaymentToOrderStatus(status: PaymentStatus): {
 } {
   switch (status) {
     case "approved":
-      return { paymentStatus: status, orderStatus: "paid" };
+      return { paymentStatus: status, orderStatus: "preparing" };
     case "cancelled":
       return { paymentStatus: status, orderStatus: "cancelled" };
     case "refunded":

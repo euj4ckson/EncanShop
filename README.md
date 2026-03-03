@@ -6,6 +6,7 @@ Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do clie
 
 - Checkout com WhatsApp, PIX (QR Code) e cartao de credito (ate 4x) via Mercado Pago.
 - Webhook oficial do Mercado Pago para atualizacao automatica de status.
+- Pagamento aprovado move o pedido automaticamente para `em preparacao`.
 - Cupons de desconto (valor fixo, percentual e frete gratis) com aplicacao no checkout.
 - Area do cliente com cadastro/login, enderecos salvos e pedidos.
 - Lista de pedidos do cliente expansivel (itens, endereco, totais, observacoes, status).
@@ -52,6 +53,7 @@ Caso nao exista, a aplicacao usa `encantartes123` e exibe um alerta no login.
 - Cupons: criar, ativar/desativar, remover.
 - Pedidos:
   - Atualizar status para `em preparacao`, `enviado` e `cancelado`.
+  - Se o pedido estiver sem pagamento aprovado, o painel pede confirmacao explicita antes de avancar para `em preparacao`/`enviado`.
   - Excluir pedido com confirmacao previa (somente admin).
 
 ## Produtos compartilhados (Vercel Blob + Redis)

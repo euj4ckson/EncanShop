@@ -62,7 +62,10 @@ export function calculateCouponDiscount(input: {
     shippingAmount = 0;
   }
 
-  const total = Number(Math.max(0, subtotal + shippingAmount - discountAmount).toFixed(2));
+  // Total is based on original shipping minus discount to avoid double-discounting free shipping.
+  const total = Number(
+    Math.max(0, subtotal + shippingOriginalAmount - discountAmount).toFixed(2)
+  );
   return {
     discountAmount: Number(discountAmount.toFixed(2)),
     shippingAmount: Number(shippingAmount.toFixed(2)),
