@@ -136,14 +136,9 @@ export function Account() {
   });
 
   React.useEffect(() => {
-    if (!ordersQuery.data?.length) {
-      setSelectedOrderId("");
-      return;
-    }
-    const stillExists = ordersQuery.data.some((order) => order.id === selectedOrderId);
-    if (!stillExists) {
-      setSelectedOrderId(ordersQuery.data[0].id);
-    }
+    if (!selectedOrderId) return;
+    const stillExists = ordersQuery.data?.some((order) => order.id === selectedOrderId);
+    if (!stillExists) setSelectedOrderId("");
   }, [ordersQuery.data, selectedOrderId]);
 
   const handleLogin = async (event: React.FormEvent) => {
@@ -400,7 +395,8 @@ export function Account() {
   }
 
   const orders = ordersQuery.data ?? [];
-  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null;
+  const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null;
+  const isOrderFocusMode = Boolean(selectedOrder);
   const isPendingPayment = selectedOrder ? canRetryPayment(selectedOrder) : false;
   const whatsappLink = selectedOrder
     ? buildWhatsAppLink(
@@ -416,6 +412,164 @@ export function Account() {
     (selectedOrder.paymentStatus === "created" ||
       selectedOrder.paymentStatus === "pending" ||
       selectedOrder.paymentStatus === "in_process");
+
+  const selectedOrderDetails = selectedOrder ? (
+    <section className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(selectedOrder.id)}</p>
+          <p className="mt-1 text-xs text-ink-600">
+            {new Date(selectedOrder.createdAt).toLocaleString("pt-BR")}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs uppercase tracking-wide text-ink-600">{statusLabel(selectedOrder.status)}</p>
+          <p className="mt-1 text-xs text-ink-600">
+            Pagamento: {paymentMethodLabel(selectedOrder.paymentMethod)} (
+            {paymentStatusLabel(selectedOrder.paymentStatus)})
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">Status de envio</p>
+          <div className="mt-3 space-y-2">
+            {shippingSteps.map((step) => (
+              <div key={`${selectedOrder.id}-${step.key}`} className="flex items-center gap-2">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    step.done ? "bg-sage-500" : step.active ? "bg-gold-500" : "bg-sand-300"
+                  }`}
+                />
+                <span className={`text-sm ${step.done || step.active ? "text-ink-900" : "text-ink-500"}`}>
+                  {step.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-sand-200/70 bg-white/80 p-3 text-xs text-ink-700">
+            {selectedOrder.trackingCode ? (
+              <p>
+                Codigo de rastreio: <strong>{selectedOrder.trackingCode}</strong>
+              </p>
+            ) : (
+              <p>Codigo de rastreio ainda nao informado.</p>
+            )}
+            {selectedOrder.trackingUrl ? (
+              <p className="mt-1">
+                Acompanhar envio:{" "}
+                <a
+                  href={selectedOrder.trackingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  Abrir rastreio
+                </a>
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">Itens do pedido</p>
+            <div className="mt-2 space-y-1 text-sm text-ink-700">
+              {selectedOrder.items.map((item, index) => (
+                <p key={`${selectedOrder.id}-${item.productId}-${index}`}>
+                  {item.quantity}x {item.name}
+                  {item.variant ? ` - Cor: ${item.variant}` : ""}
+                  {item.fragrance ? ` - Fragrancia: ${item.fragrance}` : ""}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3 text-xs text-ink-700">
+            <p>
+              Entrega: {selectedOrder.address.street}, {selectedOrder.address.number} -{" "}
+              {selectedOrder.address.neighborhood}, {selectedOrder.address.city}/{selectedOrder.address.state} -
+              CEP {selectedOrder.address.cep}
+            </p>
+            {selectedOrder.discountAmount ? (
+              <p className="mt-1">
+                Desconto ({selectedOrder.couponCode || "cupom"}): -{" "}
+                {formatCurrency(selectedOrder.discountAmount)}
+              </p>
+            ) : null}
+            <p className="mt-1">Frete: {formatCurrency(selectedOrder.shippingAmount)}</p>
+            <p className="mt-1 font-semibold">Total: {formatCurrency(selectedOrder.total)}</p>
+          </div>
+        </div>
+      </div>
+
+      {selectedOrder.notes ? (
+        <p className="mt-3 text-xs text-ink-600">Observacoes: {selectedOrder.notes}</p>
+      ) : null}
+
+      {isPendingPayment ? (
+        <div className="mt-3 space-y-2">
+          {selectedOrder.paymentMethod === "credit_card" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleResumePayment(selectedOrder)}
+              disabled={resumingOrderId === selectedOrder.id}
+            >
+              <CreditCard className="h-4 w-4" />
+              {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com cartao"}
+            </Button>
+          ) : selectedOrder.paymentMethod === "pix" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleResumePayment(selectedOrder)}
+              disabled={resumingOrderId === selectedOrder.id}
+            >
+              <QrCode className="h-4 w-4" />
+              {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com PIX"}
+            </Button>
+          ) : (
+            <Button asChild variant="outline" size="sm">
+              <a href={whatsappLink} target="_blank" rel="noreferrer">
+                <MessageCircle className="h-4 w-4" />
+                Finalizar no WhatsApp
+              </a>
+            </Button>
+          )}
+
+          {showPixQrCode ? (
+            <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
+              <img
+                src={`data:image/png;base64,${selectedOrder.pixQrCodeBase64}`}
+                alt="QR Code PIX"
+                className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
+              />
+              <Input value={selectedOrder.pixQrCode || ""} readOnly className="text-xs" />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {selectedOrder.status === "pending_payment" || selectedOrder.status === "paid" ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => void handleCancelOrder(selectedOrder.id, selectedOrder.status)}
+          disabled={cancelingOrderId === selectedOrder.id}
+        >
+          {cancelingOrderId === selectedOrder.id
+            ? "Processando..."
+            : selectedOrder.status === "paid"
+              ? "Cancelar e estornar"
+              : "Cancelar pedido"}
+        </Button>
+      ) : null}
+    </section>
+  ) : null;
 
   return (
     <div className="section-shell pb-12 pt-28">
@@ -439,144 +593,155 @@ export function Account() {
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <h2 className="font-serif text-xl text-ink-900">Enderecos salvos</h2>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-2xl border border-sand-200/70 bg-sand-50/60 p-3">
-              <p className="text-sm font-semibold text-ink-900">Telefone de contato</p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <Input
-                  value={profilePhone}
-                  onChange={(event) => setProfilePhone(formatPhoneBR(event.target.value))}
-                  placeholder="+55 32 99999-0000"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handleSavePhone()}
-                  disabled={isSavingPhone || (profilePhone && onlyDigits(profilePhone).length < 10)}
-                >
-                  {isSavingPhone ? "Salvando..." : "Salvar telefone"}
-                </Button>
-              </div>
+      {isOrderFocusMode ? (
+        <Card className="mx-auto max-w-5xl">
+          <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-xl text-ink-900">Detalhes do pedido</h2>
+              <p className="text-sm text-ink-600">Visualizacao focada do pedido selecionado.</p>
             </div>
-
-            {customer.customer.addresses.length ? (
-              customer.customer.addresses.map((address) => (
-                <div key={address.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-ink-900">{address.label || "Endereco"}</p>
-                      <p className="text-sm text-ink-700">
-                        {address.street}, {address.number} - {address.neighborhood}
-                      </p>
-                      <p className="text-xs text-ink-600">
-                        {address.city}/{address.state} - CEP {address.cep}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      onClick={() => void customer.removeAddress(address.id)}
-                      aria-label="Remover endereco"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-ink-600">Nenhum endereco salvo ainda.</p>
-            )}
-
-            <form onSubmit={handleSaveAddress} className="mt-4 grid gap-3">
-              <Input
-                placeholder="Apelido (Casa, Trabalho...)"
-                value={addressDraft.label}
-                onChange={(event) => setAddressDraft((prev) => ({ ...prev, label: event.target.value }))}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  placeholder="CEP"
-                  value={addressDraft.cep}
-                  onChange={(event) => setAddressDraft((prev) => ({ ...prev, cep: event.target.value }))}
-                  required
-                />
-                <Input
-                  placeholder="Numero"
-                  value={addressDraft.number}
-                  onChange={(event) =>
-                    setAddressDraft((prev) => ({ ...prev, number: event.target.value }))
-                  }
-                  required
-                />
-              </div>
-              <Input
-                placeholder="Rua"
-                value={addressDraft.street}
-                onChange={(event) => setAddressDraft((prev) => ({ ...prev, street: event.target.value }))}
-                required
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  placeholder="Bairro"
-                  value={addressDraft.neighborhood}
-                  onChange={(event) =>
-                    setAddressDraft((prev) => ({ ...prev, neighborhood: event.target.value }))
-                  }
-                  required
-                />
-                <Input
-                  placeholder="Cidade"
-                  value={addressDraft.city}
-                  onChange={(event) => setAddressDraft((prev) => ({ ...prev, city: event.target.value }))}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  placeholder="UF"
-                  value={addressDraft.state}
-                  onChange={(event) => setAddressDraft((prev) => ({ ...prev, state: event.target.value }))}
-                  required
-                />
-                <Input
-                  placeholder="Complemento"
-                  value={addressDraft.complement}
-                  onChange={(event) =>
-                    setAddressDraft((prev) => ({ ...prev, complement: event.target.value }))
-                  }
-                />
-              </div>
-              <Button type="submit">Salvar endereco</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <h2 className="font-serif text-xl text-ink-900">Meus pedidos</h2>
+            <Button variant="outline" onClick={() => setSelectedOrderId("")}>
+              Voltar para tela completa
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {ordersQuery.isLoading ? (
-              <p className="text-sm text-ink-600">Carregando pedidos...</p>
-            ) : orders.length ? (
-              <>
-                <div className="space-y-2">
-                  {orders.map((order) => {
-                    const isActive = selectedOrder?.id === order.id;
-                    return (
+          <CardContent>{selectedOrderDetails}</CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <h2 className="font-serif text-xl text-ink-900">Enderecos salvos</h2>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-2xl border border-sand-200/70 bg-sand-50/60 p-3">
+                <p className="text-sm font-semibold text-ink-900">Telefone de contato</p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={profilePhone}
+                    onChange={(event) => setProfilePhone(formatPhoneBR(event.target.value))}
+                    placeholder="+55 32 99999-0000"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleSavePhone()}
+                    disabled={isSavingPhone || (profilePhone && onlyDigits(profilePhone).length < 10)}
+                  >
+                    {isSavingPhone ? "Salvando..." : "Salvar telefone"}
+                  </Button>
+                </div>
+              </div>
+
+              {customer.customer.addresses.length ? (
+                customer.customer.addresses.map((address) => (
+                  <div key={address.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-ink-900">{address.label || "Endereco"}</p>
+                        <p className="text-sm text-ink-700">
+                          {address.street}, {address.number} - {address.neighborhood}
+                        </p>
+                        <p className="text-xs text-ink-600">
+                          {address.city}/{address.state} - CEP {address.cep}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => void customer.removeAddress(address.id)}
+                        aria-label="Remover endereco"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-ink-600">Nenhum endereco salvo ainda.</p>
+              )}
+
+              <form onSubmit={handleSaveAddress} className="mt-4 grid gap-3">
+                <Input
+                  placeholder="Apelido (Casa, Trabalho...)"
+                  value={addressDraft.label}
+                  onChange={(event) => setAddressDraft((prev) => ({ ...prev, label: event.target.value }))}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="CEP"
+                    value={addressDraft.cep}
+                    onChange={(event) => setAddressDraft((prev) => ({ ...prev, cep: event.target.value }))}
+                    required
+                  />
+                  <Input
+                    placeholder="Numero"
+                    value={addressDraft.number}
+                    onChange={(event) =>
+                      setAddressDraft((prev) => ({ ...prev, number: event.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <Input
+                  placeholder="Rua"
+                  value={addressDraft.street}
+                  onChange={(event) => setAddressDraft((prev) => ({ ...prev, street: event.target.value }))}
+                  required
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Bairro"
+                    value={addressDraft.neighborhood}
+                    onChange={(event) =>
+                      setAddressDraft((prev) => ({ ...prev, neighborhood: event.target.value }))
+                    }
+                    required
+                  />
+                  <Input
+                    placeholder="Cidade"
+                    value={addressDraft.city}
+                    onChange={(event) => setAddressDraft((prev) => ({ ...prev, city: event.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="UF"
+                    value={addressDraft.state}
+                    onChange={(event) => setAddressDraft((prev) => ({ ...prev, state: event.target.value }))}
+                    required
+                  />
+                  <Input
+                    placeholder="Complemento"
+                    value={addressDraft.complement}
+                    onChange={(event) =>
+                      setAddressDraft((prev) => ({ ...prev, complement: event.target.value }))
+                    }
+                  />
+                </div>
+                <Button type="submit">Salvar endereco</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="font-serif text-xl text-ink-900">Meus pedidos</h2>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {ordersQuery.isLoading ? (
+                <p className="text-sm text-ink-600">Carregando pedidos...</p>
+              ) : orders.length ? (
+                <>
+                  <p className="text-xs text-ink-600">
+                    Clique em um pedido para abrir os detalhes em tela focada.
+                  </p>
+                  <div className="space-y-2">
+                    {orders.map((order) => (
                       <button
                         key={order.id}
                         type="button"
                         onClick={() => setSelectedOrderId(order.id)}
-                        className={`w-full rounded-2xl border p-3 text-left transition ${
-                          isActive
-                            ? "border-ink-700 bg-white shadow-sm"
-                            : "border-sand-200/70 bg-white/70 hover:border-sand-300 hover:bg-white/85"
-                        }`}
+                        className="w-full rounded-2xl border border-sand-200/70 bg-white/70 p-3 text-left transition hover:border-sand-300 hover:bg-white/85"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -598,190 +763,16 @@ export function Account() {
                           </div>
                         </div>
                       </button>
-                    );
-                  })}
-                </div>
-
-                {selectedOrder ? (
-                  <section className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-ink-900">
-                          {formatOrderLabel(selectedOrder.id)}
-                        </p>
-                        <p className="mt-1 text-xs text-ink-600">
-                          {new Date(selectedOrder.createdAt).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs uppercase tracking-wide text-ink-600">
-                          {statusLabel(selectedOrder.status)}
-                        </p>
-                        <p className="mt-1 text-xs text-ink-600">
-                          Pagamento: {paymentMethodLabel(selectedOrder.paymentMethod)} (
-                          {paymentStatusLabel(selectedOrder.paymentStatus)})
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
-                          Status de envio
-                        </p>
-                        <div className="mt-3 space-y-2">
-                          {shippingSteps.map((step) => (
-                            <div key={`${selectedOrder.id}-${step.key}`} className="flex items-center gap-2">
-                              <span
-                                className={`h-2.5 w-2.5 rounded-full ${
-                                  step.done
-                                    ? "bg-sage-500"
-                                    : step.active
-                                      ? "bg-gold-500"
-                                      : "bg-sand-300"
-                                }`}
-                              />
-                              <span
-                                className={`text-sm ${
-                                  step.done || step.active ? "text-ink-900" : "text-ink-500"
-                                }`}
-                              >
-                                {step.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-3 rounded-xl border border-sand-200/70 bg-white/80 p-3 text-xs text-ink-700">
-                          {selectedOrder.trackingCode ? (
-                            <p>
-                              Codigo de rastreio: <strong>{selectedOrder.trackingCode}</strong>
-                            </p>
-                          ) : (
-                            <p>Codigo de rastreio ainda nao informado.</p>
-                          )}
-                          {selectedOrder.trackingUrl ? (
-                            <p className="mt-1">
-                              Acompanhar envio:{" "}
-                              <a
-                                href={selectedOrder.trackingUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline"
-                              >
-                                Abrir rastreio
-                              </a>
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
-                            Itens do pedido
-                          </p>
-                          <div className="mt-2 space-y-1 text-sm text-ink-700">
-                            {selectedOrder.items.map((item, index) => (
-                              <p key={`${selectedOrder.id}-${item.productId}-${index}`}>
-                                {item.quantity}x {item.name}
-                                {item.variant ? ` - Cor: ${item.variant}` : ""}
-                                {item.fragrance ? ` - Fragrancia: ${item.fragrance}` : ""}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3 text-xs text-ink-700">
-                          <p>
-                            Entrega: {selectedOrder.address.street}, {selectedOrder.address.number} -{" "}
-                            {selectedOrder.address.neighborhood}, {selectedOrder.address.city}/
-                            {selectedOrder.address.state} - CEP {selectedOrder.address.cep}
-                          </p>
-                          {selectedOrder.discountAmount ? (
-                            <p className="mt-1">
-                              Desconto ({selectedOrder.couponCode || "cupom"}): -{" "}
-                              {formatCurrency(selectedOrder.discountAmount)}
-                            </p>
-                          ) : null}
-                          <p className="mt-1">Frete: {formatCurrency(selectedOrder.shippingAmount)}</p>
-                          <p className="mt-1 font-semibold">Total: {formatCurrency(selectedOrder.total)}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedOrder.notes ? (
-                      <p className="mt-3 text-xs text-ink-600">Observacoes: {selectedOrder.notes}</p>
-                    ) : null}
-
-                    {isPendingPayment ? (
-                      <div className="mt-3 space-y-2">
-                        {selectedOrder.paymentMethod === "credit_card" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void handleResumePayment(selectedOrder)}
-                            disabled={resumingOrderId === selectedOrder.id}
-                          >
-                            <CreditCard className="h-4 w-4" />
-                            {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com cartao"}
-                          </Button>
-                        ) : selectedOrder.paymentMethod === "pix" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void handleResumePayment(selectedOrder)}
-                            disabled={resumingOrderId === selectedOrder.id}
-                          >
-                            <QrCode className="h-4 w-4" />
-                            {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com PIX"}
-                          </Button>
-                        ) : (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={whatsappLink} target="_blank" rel="noreferrer">
-                              <MessageCircle className="h-4 w-4" />
-                              Finalizar no WhatsApp
-                            </a>
-                          </Button>
-                        )}
-
-                        {showPixQrCode ? (
-                          <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
-                            <img
-                              src={`data:image/png;base64,${selectedOrder.pixQrCodeBase64}`}
-                              alt="QR Code PIX"
-                              className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
-                            />
-                            <Input value={selectedOrder.pixQrCode || ""} readOnly className="text-xs" />
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-
-                    {selectedOrder.status === "pending_payment" || selectedOrder.status === "paid" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => void handleCancelOrder(selectedOrder.id, selectedOrder.status)}
-                        disabled={cancelingOrderId === selectedOrder.id}
-                      >
-                        {cancelingOrderId === selectedOrder.id
-                          ? "Processando..."
-                          : selectedOrder.status === "paid"
-                            ? "Cancelar e estornar"
-                            : "Cancelar pedido"}
-                      </Button>
-                    ) : null}
-                  </section>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-sm text-ink-600">Voce ainda nao tem pedidos.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-ink-600">Voce ainda nao tem pedidos.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
