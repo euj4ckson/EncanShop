@@ -266,6 +266,7 @@ export function buildOrderEmail(
   const safeAccent = escapeHtml(theme.accentColor);
   const safeSoft = escapeHtml(theme.softColor);
   const safeOrderShort = escapeHtml(buildOrderLabel(order.id));
+  const safeTrackingCarrier = order.trackingCarrier ? escapeHtml(order.trackingCarrier) : "";
   const safeTrackingCode = order.trackingCode ? escapeHtml(order.trackingCode) : "";
   const safeTrackingUrl = order.trackingUrl ? escapeHtml(order.trackingUrl) : "";
   const safeRoleLabel = audience === "admin" ? "Painel da loja" : "Atualizacao de compra";
@@ -300,6 +301,7 @@ export function buildOrderEmail(
             ${safeCustomerPhone ? `<p style="margin:0 0 6px 0;font-size:14px;"><strong>Telefone:</strong> ${safeCustomerPhone}</p>` : ""}
             <p style="margin:0 0 6px 0;font-size:14px;"><strong>Endereco:</strong> ${address}</p>
             <p style="margin:0 0 10px 0;font-size:14px;"><strong>Pagamento:</strong> ${safePaymentMethod}</p>
+            ${safeTrackingCarrier ? `<p style="margin:0 0 6px 0;font-size:14px;"><strong>Transportadora:</strong> ${safeTrackingCarrier}</p>` : ""}
             ${safeTrackingCode ? `<p style="margin:0 0 6px 0;font-size:14px;"><strong>Rastreio:</strong> ${safeTrackingCode}</p>` : ""}
             ${safeTrackingUrl ? `<p style="margin:0 0 10px 0;font-size:14px;"><strong>Link de rastreio:</strong> <a href="${safeTrackingUrl}" target="_blank" rel="noreferrer">${safeTrackingUrl}</a></p>` : ""}
             ${safeNotes ? `<p style="margin:0 0 12px 0;font-size:14px;"><strong>Observacoes:</strong> ${safeNotes}</p>` : ""}
@@ -334,6 +336,7 @@ export function buildOrderEmail(
       `Endereco: ${address}`,
       `Pagamento: ${paymentMethodLabel(order.paymentMethod)}`,
       `Badge: ${badgeLabel(order)}`,
+      ...(order.trackingCarrier ? [`Transportadora: ${order.trackingCarrier}`] : []),
       ...(order.trackingCode ? [`Rastreio: ${order.trackingCode}`] : []),
       ...(order.trackingUrl ? [`Link rastreio: ${order.trackingUrl}`] : []),
       ...(order.notes ? [`Observacoes: ${order.notes}`] : []),

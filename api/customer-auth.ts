@@ -1,7 +1,7 @@
 import type { Customer } from "../src/types/customer";
 import { getQueryParam, json, normalizeEmail, readJsonBody } from "./_lib/http.js";
 import { createCustomerToken, generateId, hashPassword, verifyPassword } from "./_lib/security.js";
-import { readCustomers, stripCustomerSecret, writeCustomers } from "./_lib/store.js";
+import { readCustomers, stripCustomerSecret, withCustomersLock, writeCustomers } from "./_lib/store.js";
 
 function validatePassword(password: string): string | null {
   if (password.length < 6) return "A senha deve ter no minimo 6 caracteres.";
@@ -67,39 +67,46 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { error: phoneError });
     }
 
-    const customers = await readCustomers();
-    const existing = customers.find((item) => item.email === email);
-
     if (mode === "register") {
       const name = (body.name || "").trim();
       const nameError = validateName(name);
       if (nameError) {
         return json(res, 400, { error: nameError });
       }
-      if (existing) {
-        return json(res, 409, { error: "Ja existe uma conta com esse e-mail." });
-      }
+      const result = await withCustomersLock(async () => {
+        const customers = await readCustomers();
+        const existing = customers.find((item) => item.email === email);
+        if (existing) {
+          return { error: "Ja existe uma conta com esse e-mail." } as const;
+        }
 
-      const now = new Date().toISOString();
-      const created = {
-        id: generateId("cus"),
-        name,
-        email,
-        phone: phone || undefined,
-        passwordHash: hashPassword(password),
-        addresses: [],
-        createdAt: now,
-        updatedAt: now
-      };
-      await writeCustomers([created, ...customers]);
-      const response: AuthResponse = {
-        token: createCustomerToken({ customerId: created.id, email: created.email }),
-        customer: stripCustomerSecret(created)
-      };
-      return json(res, 201, response);
+        const now = new Date().toISOString();
+        const created = {
+          id: generateId("cus"),
+          name,
+          email,
+          phone: phone || undefined,
+          passwordHash: hashPassword(password),
+          addresses: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        await writeCustomers([created, ...customers]);
+        const payload: AuthResponse = {
+          token: createCustomerToken({ customerId: created.id, email: created.email }),
+          customer: stripCustomerSecret(created)
+        };
+        return { payload } as const;
+      });
+      if ("error" in result) {
+        return json(res, 409, { error: result.error });
+      }
+      return json(res, 201, result.payload);
     }
 
     if (mode === "login") {
+      const customers = await readCustomers();
+      const existing = customers.find((item) => item.email === email);
       if (!existing || !verifyPassword(password, existing.passwordHash)) {
         return json(res, 401, { error: "Credenciais invalidas." });
       }

@@ -7,13 +7,10 @@ import {
   validateWebhookSignature
 } from "./_lib/mercadopago.js";
 import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
-import { readOrders, writeOrders } from "./_lib/store.js";
+import type { Order } from "../src/types/order";
+import { readOrders, withOrdersLock, writeOrders } from "./_lib/store.js";
 
-async function notifyStatusChange(orderId: string) {
-  const orders = await readOrders();
-  const order = orders.find((item) => item.id === orderId);
-  if (!order) return;
-
+async function notifyStatusChange(order: Order) {
   const customerEmail = buildOrderEmail(order, "customer");
   const adminEmail = buildOrderEmail(order, "admin");
   const result = await sendCustomerAdminPair({
@@ -60,62 +57,72 @@ export default async function handler(req: any, res: any) {
     }
 
     const payment = await getPaymentById(dataId);
-    const orders = await readOrders();
+    const updateResult = await withOrdersLock(async () => {
+      const orders = await readOrders();
+      const target = orders.find(
+        (order) =>
+          order.paymentId === String(payment.id) ||
+          order.externalReference === payment.external_reference ||
+          order.id === payment.external_reference
+      );
 
-    const target = orders.find(
-      (order) =>
-        order.paymentId === String(payment.id) ||
-        order.externalReference === payment.external_reference ||
-        order.id === payment.external_reference
-    );
-
-    if (!target) {
-      return json(res, 200, { ok: true, ignored: "order-not-found" });
-    }
-
-    const prevStatus = target.status;
-    const prevPaymentStatus = target.paymentStatus;
-    const prevPaymentId = target.paymentId || "";
-    const mapped = mapPaymentToOrderStatus(payment.status);
-    const wasCancelled = target.status === "cancelled";
-    const isOperationalFlow = target.status === "preparing" || target.status === "shipped";
-    let nextPaymentStatus = mapped.paymentStatus;
-    let nextOrderStatus = mapped.orderStatus;
-
-    if (wasCancelled && payment.status === "approved") {
-      await refundPaymentById(String(payment.id), target.total);
-      nextPaymentStatus = "refunded";
-      nextOrderStatus = "cancelled";
-    } else if (wasCancelled) {
-      nextOrderStatus = "cancelled";
-      if (payment.status === "refunded") {
-        nextPaymentStatus = "refunded";
+      if (!target) {
+        return { ignored: "order-not-found" } as const;
       }
-    } else if (isOperationalFlow) {
-      const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
-      nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : target.status;
+
+      const prevStatus = target.status;
+      const prevPaymentStatus = target.paymentStatus;
+      const prevPaymentId = target.paymentId || "";
+      const mapped = mapPaymentToOrderStatus(payment.status);
+      const wasCancelled = target.status === "cancelled";
+      const isOperationalFlow = target.status === "preparing" || target.status === "shipped";
+      let nextPaymentStatus = mapped.paymentStatus;
+      let nextOrderStatus = mapped.orderStatus;
+
+      if (wasCancelled && payment.status === "approved") {
+        await refundPaymentById(String(payment.id), target.total);
+        nextPaymentStatus = "refunded";
+        nextOrderStatus = "cancelled";
+      } else if (wasCancelled) {
+        nextOrderStatus = "cancelled";
+        if (payment.status === "refunded") {
+          nextPaymentStatus = "refunded";
+        }
+      } else if (isOperationalFlow) {
+        const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
+        nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : target.status;
+      }
+
+      const updated = {
+        ...target,
+        paymentId: String(payment.id),
+        paymentStatus: nextPaymentStatus,
+        status: nextOrderStatus,
+        updatedAt: new Date().toISOString()
+      };
+
+      const hasChanged =
+        prevStatus !== updated.status ||
+        prevPaymentStatus !== updated.paymentStatus ||
+        prevPaymentId !== (updated.paymentId || "");
+      if (!hasChanged) {
+        return { unchanged: true } as const;
+      }
+
+      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+      const notify = prevStatus !== updated.status || prevPaymentStatus !== updated.paymentStatus;
+      return { updated, notify } as const;
+    }, { ttlSeconds: 45 });
+
+    if ("ignored" in updateResult) {
+      return json(res, 200, { ok: true, ignored: updateResult.ignored });
     }
-
-    const updated = {
-      ...target,
-      paymentId: String(payment.id),
-      paymentStatus: nextPaymentStatus,
-      status: nextOrderStatus,
-      updatedAt: new Date().toISOString()
-    };
-
-    const hasChanged =
-      prevStatus !== updated.status ||
-      prevPaymentStatus !== updated.paymentStatus ||
-      prevPaymentId !== (updated.paymentId || "");
-    if (!hasChanged) {
+    if ("unchanged" in updateResult) {
       return json(res, 200, { ok: true, unchanged: true });
     }
 
-    await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
-
-    if (prevStatus !== updated.status || prevPaymentStatus !== updated.paymentStatus) {
-      await notifyStatusChange(updated.id);
+    if (updateResult.notify) {
+      await notifyStatusChange(updateResult.updated);
     }
 
     return json(res, 200, { ok: true });

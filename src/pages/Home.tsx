@@ -14,7 +14,7 @@ import { useSeo } from "@/lib/seo";
 import { PAGE_SIZE } from "@/lib/config";
 import { ProductsRepo } from "@/services/productsRepo";
 import { formatCurrency } from "@/lib/utils";
-import type { ProductSort } from "@/services/productRepo";
+import type { ProductListResult, ProductSort } from "@/services/productRepo";
 import { PrefetchLink } from "@/routes/PrefetchLink";
 import logo from "@/assets/logo.svg";
 
@@ -51,14 +51,15 @@ export function Home() {
     queryFn: () => ProductsRepo.listCategories()
   });
 
-  const productsQuery = useInfiniteQuery({
+  const productsQuery = useInfiniteQuery<ProductListResult, Error>({
     queryKey: ["products", { search, category, sort }],
-    queryFn: ({ pageParam = 0 }) =>
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
       ProductsRepo.list({
         search,
         category,
         sort,
-        page: pageParam,
+        page: Number(pageParam),
         pageSize: PAGE_SIZE
       }),
     getNextPageParam: (lastPage) => {

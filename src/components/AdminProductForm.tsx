@@ -78,16 +78,16 @@ export function AdminProductForm({
     }
   });
 
-  const { fields: imageFields, append, remove } = useFieldArray({
-    control: form.control,
+  const { fields: imageFields, append, remove } = useFieldArray<any>({
+    control: form.control as any,
     name: "images"
   });
   const {
     fields: variantFields,
     append: appendVariant,
     remove: removeVariant
-  } = useFieldArray({
-    control: form.control,
+  } = useFieldArray<any>({
+    control: form.control as any,
     name: "variants"
   });
 
@@ -142,6 +142,7 @@ export function AdminProductForm({
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               onClick={() => remove(index)}
               aria-label="Remover imagem"
             >
@@ -157,7 +158,7 @@ export function AdminProductForm({
             Adicionar URL
           </Button>
           <label
-            className={`inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-sand-200/70 bg-white/70 px-3 py-2 text-sm text-ink-700 transition hover:bg-white ${
+            className={`inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-sand-200/70 bg-white/80 px-4 text-sm text-ink-700 shadow-sm transition hover:bg-white ${
               maxReached ? "opacity-50" : ""
             }`}
           >
@@ -184,6 +185,7 @@ export function AdminProductForm({
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               onClick={() => removeVariant(index)}
               aria-label="Remover variação"
             >
@@ -208,17 +210,29 @@ export function AdminProductForm({
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <label className="flex items-center gap-2 text-sm text-ink-700">
-          <input type="checkbox" {...form.register("featured")} />
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-sand-300 text-ink-900 focus:ring-2 focus:ring-gold-200"
+            {...form.register("featured")}
+          />
           Destaque
         </label>
         <label className="flex items-center gap-2 text-sm text-ink-700">
-          <input type="checkbox" {...form.register("weeklyCurated")} />
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-sand-300 text-ink-900 focus:ring-2 focus:ring-gold-200"
+            {...form.register("weeklyCurated")}
+          />
           Curadoria da semana
         </label>
         <label className="flex items-center gap-2 text-sm text-ink-700">
-          <input type="checkbox" {...form.register("inStock")} />
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-sand-300 text-ink-900 focus:ring-2 focus:ring-gold-200"
+            {...form.register("inStock")}
+          />
           Em estoque
         </label>
       </div>
