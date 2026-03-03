@@ -127,12 +127,24 @@ export function Account() {
   const [addressDraft, setAddressDraft] = React.useState<AddressDraft>(emptyAddress);
   const [cancelingOrderId, setCancelingOrderId] = React.useState("");
   const [resumingOrderId, setResumingOrderId] = React.useState("");
+  const [selectedOrderId, setSelectedOrderId] = React.useState("");
 
   const ordersQuery = useQuery({
     queryKey: ["customer-orders", customer.customer?.id],
     queryFn: OrderRepo.list,
     enabled: customer.isAuthed
   });
+
+  React.useEffect(() => {
+    if (!ordersQuery.data?.length) {
+      setSelectedOrderId("");
+      return;
+    }
+    const stillExists = ordersQuery.data.some((order) => order.id === selectedOrderId);
+    if (!stillExists) {
+      setSelectedOrderId(ordersQuery.data[0].id);
+    }
+  }, [ordersQuery.data, selectedOrderId]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -387,6 +399,24 @@ export function Account() {
     );
   }
 
+  const orders = ordersQuery.data ?? [];
+  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null;
+  const isPendingPayment = selectedOrder ? canRetryPayment(selectedOrder) : false;
+  const whatsappLink = selectedOrder
+    ? buildWhatsAppLink(
+        contacts?.whatsapp || "553291109045",
+        `Ola! Quero concluir o pagamento do pedido ${selectedOrder.id}.`
+      )
+    : "";
+  const shippingSteps = selectedOrder ? buildShippingSteps(selectedOrder) : [];
+  const showPixQrCode =
+    selectedOrder?.paymentMethod === "pix" &&
+    selectedOrder.pixQrCodeBase64 &&
+    selectedOrder.status === "pending_payment" &&
+    (selectedOrder.paymentStatus === "created" ||
+      selectedOrder.paymentStatus === "pending" ||
+      selectedOrder.paymentStatus === "in_process");
+
   return (
     <div className="section-shell pb-12 pt-28">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -532,53 +562,76 @@ export function Account() {
           <CardContent className="space-y-3">
             {ordersQuery.isLoading ? (
               <p className="text-sm text-ink-600">Carregando pedidos...</p>
-            ) : ordersQuery.data?.length ? (
-              ordersQuery.data.map((order) => {
-                const isPendingPayment = canRetryPayment(order);
-                const whatsappLink = buildWhatsAppLink(
-                  contacts?.whatsapp || "553291109045",
-                  `Ola! Quero concluir o pagamento do pedido ${order.id}.`
-                );
-                const shippingSteps = buildShippingSteps(order);
-                const showPixQrCode =
-                  order.paymentMethod === "pix" &&
-                  order.pixQrCodeBase64 &&
-                  order.status === "pending_payment" &&
-                  (order.paymentStatus === "created" ||
-                    order.paymentStatus === "pending" ||
-                    order.paymentStatus === "in_process");
+            ) : orders.length ? (
+              <>
+                <div className="space-y-2">
+                  {orders.map((order) => {
+                    const isActive = selectedOrder?.id === order.id;
+                    return (
+                      <button
+                        key={order.id}
+                        type="button"
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className={`w-full rounded-2xl border p-3 text-left transition ${
+                          isActive
+                            ? "border-ink-700 bg-white shadow-sm"
+                            : "border-sand-200/70 bg-white/70 hover:border-sand-300 hover:bg-white/85"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(order.id)}</p>
+                            <p className="mt-1 text-xs text-ink-600">
+                              {new Date(order.createdAt).toLocaleString("pt-BR")}
+                            </p>
+                            <p className="text-sm text-ink-700">
+                              {order.items.length} item(ns) - {formatCurrency(order.total)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs uppercase tracking-wide text-ink-600">
+                              {statusLabel(order.status)}
+                            </p>
+                            <p className="mt-1 text-xs text-ink-600">
+                              Pagamento: {paymentStatusLabel(order.paymentStatus)}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                return (
-                  <section key={order.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
+                {selectedOrder ? (
+                  <section className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(order.id)}</p>
-                        <p className="mt-1 text-xs text-ink-600">
-                          {new Date(order.createdAt).toLocaleString("pt-BR")}
+                        <p className="text-sm font-semibold text-ink-900">
+                          {formatOrderLabel(selectedOrder.id)}
                         </p>
-                        <p className="text-sm text-ink-700">
-                          {order.items.length} item(ns) - {formatCurrency(order.total)}
+                        <p className="mt-1 text-xs text-ink-600">
+                          {new Date(selectedOrder.createdAt).toLocaleString("pt-BR")}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs uppercase tracking-wide text-ink-600">
-                          {statusLabel(order.status)}
+                          {statusLabel(selectedOrder.status)}
                         </p>
                         <p className="mt-1 text-xs text-ink-600">
-                          Pagamento: {paymentMethodLabel(order.paymentMethod)} (
-                          {paymentStatusLabel(order.paymentStatus)})
+                          Pagamento: {paymentMethodLabel(selectedOrder.paymentMethod)} (
+                          {paymentStatusLabel(selectedOrder.paymentStatus)})
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
                           Status de envio
                         </p>
                         <div className="mt-3 space-y-2">
                           {shippingSteps.map((step) => (
-                            <div key={`${order.id}-${step.key}`} className="flex items-center gap-2">
+                            <div key={`${selectedOrder.id}-${step.key}`} className="flex items-center gap-2">
                               <span
                                 className={`h-2.5 w-2.5 rounded-full ${
                                   step.done
@@ -600,18 +653,18 @@ export function Account() {
                         </div>
 
                         <div className="mt-3 rounded-xl border border-sand-200/70 bg-white/80 p-3 text-xs text-ink-700">
-                          {order.trackingCode ? (
+                          {selectedOrder.trackingCode ? (
                             <p>
-                              Codigo de rastreio: <strong>{order.trackingCode}</strong>
+                              Codigo de rastreio: <strong>{selectedOrder.trackingCode}</strong>
                             </p>
                           ) : (
                             <p>Codigo de rastreio ainda nao informado.</p>
                           )}
-                          {order.trackingUrl ? (
+                          {selectedOrder.trackingUrl ? (
                             <p className="mt-1">
                               Acompanhar envio:{" "}
                               <a
-                                href={order.trackingUrl}
+                                href={selectedOrder.trackingUrl}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="underline"
@@ -629,8 +682,8 @@ export function Account() {
                             Itens do pedido
                           </p>
                           <div className="mt-2 space-y-1 text-sm text-ink-700">
-                            {order.items.map((item, index) => (
-                              <p key={`${order.id}-${item.productId}-${index}`}>
+                            {selectedOrder.items.map((item, index) => (
+                              <p key={`${selectedOrder.id}-${item.productId}-${index}`}>
                                 {item.quantity}x {item.name}
                                 {item.variant ? ` - Cor: ${item.variant}` : ""}
                                 {item.fragrance ? ` - Fragrancia: ${item.fragrance}` : ""}
@@ -641,47 +694,47 @@ export function Account() {
 
                         <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3 text-xs text-ink-700">
                           <p>
-                            Entrega: {order.address.street}, {order.address.number} -{" "}
-                            {order.address.neighborhood}, {order.address.city}/{order.address.state} - CEP{" "}
-                            {order.address.cep}
+                            Entrega: {selectedOrder.address.street}, {selectedOrder.address.number} -{" "}
+                            {selectedOrder.address.neighborhood}, {selectedOrder.address.city}/
+                            {selectedOrder.address.state} - CEP {selectedOrder.address.cep}
                           </p>
-                          {order.discountAmount ? (
+                          {selectedOrder.discountAmount ? (
                             <p className="mt-1">
-                              Desconto ({order.couponCode || "cupom"}): -{" "}
-                              {formatCurrency(order.discountAmount)}
+                              Desconto ({selectedOrder.couponCode || "cupom"}): -{" "}
+                              {formatCurrency(selectedOrder.discountAmount)}
                             </p>
                           ) : null}
-                          <p className="mt-1">Frete: {formatCurrency(order.shippingAmount)}</p>
-                          <p className="mt-1 font-semibold">Total: {formatCurrency(order.total)}</p>
+                          <p className="mt-1">Frete: {formatCurrency(selectedOrder.shippingAmount)}</p>
+                          <p className="mt-1 font-semibold">Total: {formatCurrency(selectedOrder.total)}</p>
                         </div>
                       </div>
                     </div>
 
-                    {order.notes ? (
-                      <p className="mt-3 text-xs text-ink-600">Observacoes: {order.notes}</p>
+                    {selectedOrder.notes ? (
+                      <p className="mt-3 text-xs text-ink-600">Observacoes: {selectedOrder.notes}</p>
                     ) : null}
 
                     {isPendingPayment ? (
                       <div className="mt-3 space-y-2">
-                        {order.paymentMethod === "credit_card" ? (
+                        {selectedOrder.paymentMethod === "credit_card" ? (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => void handleResumePayment(order)}
-                            disabled={resumingOrderId === order.id}
+                            onClick={() => void handleResumePayment(selectedOrder)}
+                            disabled={resumingOrderId === selectedOrder.id}
                           >
                             <CreditCard className="h-4 w-4" />
-                            {resumingOrderId === order.id ? "Processando..." : "Pagar com cartao"}
+                            {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com cartao"}
                           </Button>
-                        ) : order.paymentMethod === "pix" ? (
+                        ) : selectedOrder.paymentMethod === "pix" ? (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => void handleResumePayment(order)}
-                            disabled={resumingOrderId === order.id}
+                            onClick={() => void handleResumePayment(selectedOrder)}
+                            disabled={resumingOrderId === selectedOrder.id}
                           >
                             <QrCode className="h-4 w-4" />
-                            {resumingOrderId === order.id ? "Processando..." : "Pagar com PIX"}
+                            {resumingOrderId === selectedOrder.id ? "Processando..." : "Pagar com PIX"}
                           </Button>
                         ) : (
                           <Button asChild variant="outline" size="sm">
@@ -695,34 +748,34 @@ export function Account() {
                         {showPixQrCode ? (
                           <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
                             <img
-                              src={`data:image/png;base64,${order.pixQrCodeBase64}`}
+                              src={`data:image/png;base64,${selectedOrder.pixQrCodeBase64}`}
                               alt="QR Code PIX"
                               className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
                             />
-                            <Input value={order.pixQrCode || ""} readOnly className="text-xs" />
+                            <Input value={selectedOrder.pixQrCode || ""} readOnly className="text-xs" />
                           </div>
                         ) : null}
                       </div>
                     ) : null}
 
-                    {order.status === "pending_payment" || order.status === "paid" ? (
+                    {selectedOrder.status === "pending_payment" || selectedOrder.status === "paid" ? (
                       <Button
                         variant="outline"
                         size="sm"
                         className="mt-3"
-                        onClick={() => void handleCancelOrder(order.id, order.status)}
-                        disabled={cancelingOrderId === order.id}
+                        onClick={() => void handleCancelOrder(selectedOrder.id, selectedOrder.status)}
+                        disabled={cancelingOrderId === selectedOrder.id}
                       >
-                        {cancelingOrderId === order.id
+                        {cancelingOrderId === selectedOrder.id
                           ? "Processando..."
-                          : order.status === "paid"
+                          : selectedOrder.status === "paid"
                             ? "Cancelar e estornar"
                             : "Cancelar pedido"}
                       </Button>
                     ) : null}
                   </section>
-                );
-              })
+                ) : null}
+              </>
             ) : (
               <p className="text-sm text-ink-600">Voce ainda nao tem pedidos.</p>
             )}

@@ -9,9 +9,8 @@ Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do clie
 - Pagamento aprovado move o pedido automaticamente para `em preparacao`.
 - Em pedidos pendentes, o cliente tambem sincroniza status na consulta do pedido (fallback), evitando tela travada se webhook atrasar.
 - Cupons de desconto (valor fixo, percentual e frete gratis) com aplicacao no checkout.
-- Area do cliente com cadastro/login, enderecos salvos e pedidos.
 - Area do cliente com cadastro/login, telefone de contato, enderecos salvos e pedidos.
-- Sessao dedicada por pedido na area do cliente (itens, endereco, totais, observacoes, status de envio e trilha visual).
+- Lista compacta de pedidos na area do cliente, com selecao por clique para exibir detalhes de apenas um pedido por vez (melhor para mobile).
 - Retomada de pagamento de pedido pendente/falho pela area do cliente, no mesmo metodo original do pedido.
 - Painel admin com gestao de produtos, fragrancias globais, cupons, status de pedidos e exclusao de pedidos.
 
