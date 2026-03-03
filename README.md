@@ -13,6 +13,8 @@ Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do clie
 - Lista compacta de pedidos na area do cliente, com selecao por clique para exibir detalhes de apenas um pedido por vez (melhor para mobile).
 - Retomada de pagamento de pedido pendente/falho pela area do cliente, no mesmo metodo original do pedido.
 - Painel admin com gestao de produtos, fragrancias globais, cupons, status de pedidos e exclusao de pedidos.
+- Tela pos-pagamento no checkout com ilustracao SVG tematica de vela quando o pagamento e confirmado.
+- E-mails transacionais personalizados por etapa (pedido recebido, pagamento confirmado, em preparacao, enviado, falha e cancelado) com layout visual e ilustracao.
 
 ## Requisitos
 
@@ -135,6 +137,7 @@ Fluxos suportados:
 - `/api/customer-profile` (perfil e enderecos)
   - inclui atualizacao de telefone de contato do cliente
 - `/api/admin-email-test` (teste de notificacoes por e-mail, protegido por senha admin)
+  - usa o mesmo template visual e os mesmos assuntos das rotinas reais de envio
 - `/api/shipping` (calculo de frete por CEP)
 - `/api/orders` (criacao, consulta, cancelamento, retomada de pagamento, atualizacao/exclusao admin e rastreio)
 - `/api/fragrances` (fragrancias globais)

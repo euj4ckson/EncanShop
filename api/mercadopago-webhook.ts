@@ -14,19 +14,20 @@ async function notifyStatusChange(orderId: string) {
   const order = orders.find((item) => item.id === orderId);
   if (!order) return;
 
-  const email = buildOrderEmail(order);
+  const customerEmail = buildOrderEmail(order, "customer");
+  const adminEmail = buildOrderEmail(order, "admin");
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: customerEmail.html,
+      text: customerEmail.text
     }),
     sendEmail({
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: adminEmail.html,
+      text: adminEmail.text
     })
   ]);
 }

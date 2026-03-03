@@ -18,6 +18,7 @@ import { PrefetchLink } from "@/routes/PrefetchLink";
 import { ShippingRepo } from "@/services/shippingRepo";
 import { OrderRepo } from "@/services/orderRepo";
 import { CouponRepo } from "@/services/couponRepo";
+import paymentConfirmedCandle from "@/assets/payment-confirmed-candle.svg";
 import type { Address } from "@/types/customer";
 import type { CheckoutPaymentMethod, Order, ShippingQuote } from "@/types/order";
 import type { CouponPreview } from "@/types/coupon";
@@ -110,7 +111,15 @@ function LastOrderCard({
       <p className="text-sm text-ink-700">{statusText(order)}</p>
       {paymentConfirmed ? (
         <div className="mt-3 rounded-xl border border-sage-300 bg-sage-100/80 p-3 text-sm text-ink-900">
-          Pagamento confirmado com sucesso. Seu pedido foi recebido e esta em preparacao.
+          <img
+            src={paymentConfirmedCandle}
+            alt="Ilustracao de vela com pagamento confirmado"
+            className="mx-auto w-full max-w-[280px]"
+            loading="lazy"
+          />
+          <p className="mt-2">
+            Pagamento confirmado com sucesso. Seu pedido foi recebido e esta em preparacao.
+          </p>
         </div>
       ) : null}
       {order.notes ? <p className="mt-2 text-xs text-ink-600">Observacoes: {order.notes}</p> : null}

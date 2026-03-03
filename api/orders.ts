@@ -161,37 +161,39 @@ function withCustomerPhoneFallback(orders: Order[], customers: Array<{ id: strin
 }
 
 async function sendOrderNotifications(order: Order): Promise<void> {
-  const email = buildOrderEmail(order);
+  const customerEmail = buildOrderEmail(order, "customer");
+  const adminEmail = buildOrderEmail(order, "admin");
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: customerEmail.html,
+      text: customerEmail.text
     }),
     sendEmail({
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: adminEmail.html,
+      text: adminEmail.text
     })
   ]);
 }
 
 async function sendOrderStatusNotifications(order: Order): Promise<void> {
-  const email = buildOrderEmail(order);
+  const customerEmail = buildOrderEmail(order, "customer");
+  const adminEmail = buildOrderEmail(order, "admin");
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
       subject: customerOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: customerEmail.html,
+      text: customerEmail.text
     }),
     sendEmail({
       to: getAdminEmail(),
       subject: adminOrderEmailSubject(order),
-      html: email.html,
-      text: email.text
+      html: adminEmail.html,
+      text: adminEmail.text
     })
   ]);
 }

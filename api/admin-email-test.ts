@@ -2,7 +2,7 @@ import type { Order, OrderStatus, PaymentStatus } from "../src/types/order";
 import type { Address } from "../src/types/customer";
 import { getAdminEmail, sendEmail } from "./_lib/email.js";
 import { json, normalizeEmail, readHeader, readJsonBody } from "./_lib/http.js";
-import { buildOrderEmail } from "./_lib/orderEmail.js";
+import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
 
 type TestStage = "order_created" | "payment_approved" | "preparing" | "shipped";
 
@@ -17,7 +17,16 @@ type TestPayload = {
   customerName?: string;
 };
 
-const EMAIL_SEND_SPACING_MS = 700;
+type SendEmailPayload = {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+};
+
+type SendWithThrottle = (payload: SendEmailPayload) => Promise<boolean>;
+
+const EMAIL_SEND_MIN_INTERVAL_MS = 650;
 
 function getAdminPasswordFromEnv(): string {
   const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
@@ -56,13 +65,6 @@ function baseAddress(): Address {
     complement: "",
     reference: "Proximo ao comercio local"
   };
-}
-
-function subjectByStage(stage: TestStage, orderId: string): string {
-  if (stage === "order_created") return `[Teste] Pedido realizado - ${orderId}`;
-  if (stage === "payment_approved") return `[Teste] Pagamento confirmado - ${orderId}`;
-  if (stage === "preparing") return `[Teste] Pedido em preparacao - ${orderId}`;
-  return `[Teste] Pedido enviado - ${orderId}`;
 }
 
 function statusByStage(stage: TestStage): { status: OrderStatus; paymentStatus: PaymentStatus } {
@@ -121,44 +123,41 @@ function createTestOrder(input: {
   };
 }
 
+function createThrottledSender(minIntervalMs: number): SendWithThrottle {
+  let lastSentAt = 0;
+  return async (payload) => {
+    const elapsed = Date.now() - lastSentAt;
+    const waitMs = Math.max(0, minIntervalMs - elapsed);
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    const sent = await sendEmail(payload);
+    lastSentAt = Date.now();
+    return sent;
+  };
+}
+
 async function sendStageEmail(input: {
   stage: TestStage;
   order: Order;
   customerEmail: string;
   adminEmail: string;
+  sendWithThrottle: SendWithThrottle;
 }): Promise<StageResult> {
-  const email = buildOrderEmail(input.order);
-  const subject = subjectByStage(input.stage, input.order.id);
+  const customerEmailPayload = buildOrderEmail(input.order, "customer");
+  const adminEmailPayload = buildOrderEmail(input.order, "admin");
 
-  const sameRecipient = input.customerEmail === input.adminEmail;
-  if (sameRecipient) {
-    const sent = await sendEmail({
-      to: input.customerEmail,
-      subject,
-      html: email.html,
-      text: email.text
-    });
-    return {
-      stage: input.stage,
-      customerSent: sent,
-      adminSent: sent
-    };
-  }
-
-  const customerSent = await sendEmail({
+  const customerSent = await input.sendWithThrottle({
     to: input.customerEmail,
-    subject,
-    html: email.html,
-    text: email.text
+    subject: customerOrderEmailSubject(input.order),
+    html: customerEmailPayload.html,
+    text: customerEmailPayload.text
   });
-
-  await sleep(EMAIL_SEND_SPACING_MS);
-
-  const adminSent = await sendEmail({
+  const adminSent = await input.sendWithThrottle({
     to: input.adminEmail,
-    subject,
-    html: email.html,
-    text: email.text
+    subject: adminOrderEmailSubject(input.order),
+    html: adminEmailPayload.html,
+    text: adminEmailPayload.text
   });
 
   return {
@@ -192,6 +191,7 @@ export default async function handler(req: any, res: any) {
     const baseId = `TESTE-${baseTime.getTime().toString(36).toUpperCase()}`;
     const stages: TestStage[] = ["order_created", "payment_approved", "preparing", "shipped"];
     const results: StageResult[] = [];
+    const sendWithThrottle = createThrottledSender(EMAIL_SEND_MIN_INTERVAL_MS);
 
     for (let index = 0; index < stages.length; index += 1) {
       const stage = stages[index];
@@ -208,16 +208,13 @@ export default async function handler(req: any, res: any) {
         stage,
         order,
         customerEmail,
-        adminEmail
+        adminEmail,
+        sendWithThrottle
       });
       results.push(sent);
 
       if (!sent.customerSent && !sent.adminSent) {
         break;
-      }
-
-      if (index < stages.length - 1) {
-        await sleep(EMAIL_SEND_SPACING_MS);
       }
     }
 
