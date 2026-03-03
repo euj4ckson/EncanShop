@@ -1,18 +1,19 @@
-<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g stroke="#121212" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M64 15C46 32 46 52 64 67C82 52 82 32 64 15Z" />
-    <path d="M64 30C56 40 56 50 64 57C72 50 72 40 64 30Z" />
-    <path d="M64 57V65" />
-    <rect x="44" y="65" width="40" height="50" rx="6" />
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="#141414" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M80 18C58 39 58 63 80 82C102 63 102 39 80 18Z" />
+    <path d="M80 37C70 50 70 63 80 72C90 63 90 50 80 37Z" />
+    <path d="M80 72V81" />
+    <rect x="55" y="81" width="50" height="62" rx="6" />
   </g>
 
-  <g fill="#121212">
-    <path d="M21 50L24 56H31L25 60L28 66L21 62L14 66L17 60L11 56H18L21 50Z" />
-    <path d="M35 31L37 35H42L38 38L40 43L35 40L30 43L32 38L28 35H33L35 31Z" />
-    <path d="M95 29L97 33H102L98 36L100 41L95 38L90 41L92 36L88 33H93L95 29Z" />
-    <path d="M107 49L110 55H117L111 59L114 65L107 61L100 65L103 59L97 55H104L107 49Z" />
-    <circle cx="23" cy="87" r="2.5" />
-    <circle cx="102" cy="84" r="2.5" />
-    <circle cx="87" cy="97" r="2.5" />
+  <g fill="#141414">
+    <path d="M26 69L29 76H37L30.5 80L33 87L26 82.5L19 87L21.5 80L15 76H23L26 69Z" />
+    <path d="M43 45L45.5 50.5H51.5L46.5 54L48.5 60L43 56.5L37.5 60L39.5 54L34.5 50.5H40.5L43 45Z" />
+    <path d="M117 42L119.5 47.5H125.5L120.5 51L122.5 57L117 53.5L111.5 57L113.5 51L108.5 47.5H114.5L117 42Z" />
+    <path d="M132 67L135 74H143L136.5 78L139 85L132 80.5L125 85L127.5 78L121 74H129L132 67Z" />
+    <rect x="26" y="97" width="4" height="12" rx="2" />
+    <rect x="123" y="96" width="4" height="12" rx="2" />
+    <circle cx="46" cy="101" r="2.5" />
+    <circle cx="112" cy="108" r="2.5" />
   </g>
 </svg>
