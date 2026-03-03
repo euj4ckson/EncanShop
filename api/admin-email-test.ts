@@ -17,6 +17,8 @@ type TestPayload = {
   customerName?: string;
 };
 
+const EMAIL_SEND_SPACING_MS = 700;
+
 function getAdminPasswordFromEnv(): string {
   const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
   if (password) return password;
@@ -35,6 +37,10 @@ function assertAdminAccess(req: any): void {
 
 function isValidEmail(email: string): boolean {
   return email.includes("@") && email.length >= 5;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function baseAddress(): Address {
@@ -124,20 +130,36 @@ async function sendStageEmail(input: {
   const email = buildOrderEmail(input.order);
   const subject = subjectByStage(input.stage, input.order.id);
 
-  const [customerSent, adminSent] = await Promise.all([
-    sendEmail({
+  const sameRecipient = input.customerEmail === input.adminEmail;
+  if (sameRecipient) {
+    const sent = await sendEmail({
       to: input.customerEmail,
       subject,
       html: email.html,
       text: email.text
-    }),
-    sendEmail({
-      to: input.adminEmail,
-      subject,
-      html: email.html,
-      text: email.text
-    })
-  ]);
+    });
+    return {
+      stage: input.stage,
+      customerSent: sent,
+      adminSent: sent
+    };
+  }
+
+  const customerSent = await sendEmail({
+    to: input.customerEmail,
+    subject,
+    html: email.html,
+    text: email.text
+  });
+
+  await sleep(EMAIL_SEND_SPACING_MS);
+
+  const adminSent = await sendEmail({
+    to: input.adminEmail,
+    subject,
+    html: email.html,
+    text: email.text
+  });
 
   return {
     stage: input.stage,
@@ -189,6 +211,14 @@ export default async function handler(req: any, res: any) {
         adminEmail
       });
       results.push(sent);
+
+      if (!sent.customerSent && !sent.adminSent) {
+        break;
+      }
+
+      if (index < stages.length - 1) {
+        await sleep(EMAIL_SEND_SPACING_MS);
+      }
     }
 
     const successCount = results.reduce((acc, item) => {
