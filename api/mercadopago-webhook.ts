@@ -69,6 +69,7 @@ export default async function handler(req: any, res: any) {
     const prevStatus = target.status;
     const mapped = mapPaymentToOrderStatus(payment.status);
     const wasCancelled = target.status === "cancelled";
+    const isOperationalFlow = target.status === "preparing" || target.status === "shipped";
     let nextPaymentStatus = mapped.paymentStatus;
     let nextOrderStatus = mapped.orderStatus;
 
@@ -81,6 +82,9 @@ export default async function handler(req: any, res: any) {
       if (payment.status === "refunded") {
         nextPaymentStatus = "refunded";
       }
+    } else if (isOperationalFlow) {
+      const paymentEndedAsFailure = mapped.orderStatus === "cancelled" || mapped.orderStatus === "failed";
+      nextOrderStatus = paymentEndedAsFailure ? mapped.orderStatus : target.status;
     }
 
     const updated = {

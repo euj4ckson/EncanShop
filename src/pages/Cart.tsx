@@ -60,6 +60,8 @@ function toAddressInput(value: AddressDraft): Partial<Address> {
 }
 
 function statusText(order: Order): string {
+  if (order.status === "preparing") return "Em preparação";
+  if (order.status === "shipped") return "Enviado";
   if (order.status === "paid") return "Pagamento aprovado";
   if (order.status === "failed") return "Pagamento recusado";
   if (order.status === "cancelled") return "Pagamento cancelado";

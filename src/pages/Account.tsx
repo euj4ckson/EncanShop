@@ -37,6 +37,10 @@ const emptyAddress: AddressDraft = {
 
 function statusLabel(status: string): string {
   switch (status) {
+    case "preparing":
+      return "Em preparacao";
+    case "shipped":
+      return "Enviado";
     case "paid":
       return "Pago";
     case "failed":

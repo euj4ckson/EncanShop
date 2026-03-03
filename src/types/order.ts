@@ -3,7 +3,13 @@ import type { CartItem } from "@/types/cart";
 
 export type CheckoutPaymentMethod = "whatsapp" | "pix" | "credit_card";
 
-export type OrderStatus = "pending_payment" | "paid" | "failed" | "cancelled";
+export type OrderStatus =
+  | "pending_payment"
+  | "paid"
+  | "preparing"
+  | "shipped"
+  | "failed"
+  | "cancelled";
 
 export type PaymentStatus =
   | "created"

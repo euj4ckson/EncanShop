@@ -10,14 +10,18 @@ import { clearSession } from "@/lib/auth";
 import { formatPhoneBR, slugify } from "@/lib/utils";
 import type { Product } from "@/types/product";
 import type { Fragrance } from "@/types/fragrance";
+import type { Order } from "@/types/order";
 import { PRODUCTS_BACKEND_MODE, ProductsRepo } from "@/services/productsRepo";
 import { ContactRepo } from "@/services/contactRepo";
 import { useContacts } from "@/services/useContacts";
 import { normalizeInstagram, normalizeWhatsapp } from "@/lib/contacts";
 import { FragranceRepo } from "@/services/fragranceRepo";
+import { OrderRepo } from "@/services/orderRepo";
 
 export function Admin({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = React.useState<"products" | "fragrances" | "settings">("products");
+  const [tab, setTab] = React.useState<"products" | "fragrances" | "orders" | "settings">(
+    "products"
+  );
   const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState<Product | null>(null);
   const queryClient = useQueryClient();
@@ -38,6 +42,10 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
   const fragrancesQuery = useQuery({
     queryKey: ["admin-fragrances"],
     queryFn: () => FragranceRepo.listAllForAdmin()
+  });
+  const ordersQuery = useQuery({
+    queryKey: ["admin-orders"],
+    queryFn: () => OrderRepo.listForAdmin()
   });
 
   const createMutation = useMutation({
@@ -108,6 +116,22 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
     },
     onError: (error) => showErrorToast("Falha ao remover fragrância", error)
   });
+  const updateOrderStatusMutation = useMutation({
+    mutationFn: (input: { id: string; status: "preparing" | "shipped" | "cancelled"; reason?: string }) =>
+      OrderRepo.updateStatusAsAdmin(input),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["customer-orders"] });
+      const label =
+        variables.status === "preparing"
+          ? "Pedido em preparação"
+          : variables.status === "shipped"
+            ? "Pedido enviado"
+            : "Pedido cancelado";
+      toast({ title: label, variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao atualizar pedido", error)
+  });
 
   const filteredProducts = (productsQuery.data ?? []).filter((product) =>
     product.name.toLowerCase().includes(search.toLowerCase())
@@ -151,6 +175,13 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
             className="w-full justify-start"
           >
             Configurações
+          </Button>
+          <Button
+            variant={tab === "orders" ? "primary" : "ghost"}
+            onClick={() => setTab("orders")}
+            className="w-full justify-start"
+          >
+            Pedidos
           </Button>
           <Button
             variant={tab === "fragrances" ? "primary" : "ghost"}
@@ -262,6 +293,24 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
               deleteFragranceMutation.isPending
             }
           />
+        ) : tab === "orders" ? (
+          <AdminOrders
+            orders={ordersQuery.data ?? []}
+            loading={ordersQuery.isLoading || updateOrderStatusMutation.isPending}
+            onPrepare={(order) =>
+              updateOrderStatusMutation.mutate({ id: order.id, status: "preparing" })
+            }
+            onShip={(order) => updateOrderStatusMutation.mutate({ id: order.id, status: "shipped" })}
+            onCancel={(order) => {
+              const reason =
+                window.prompt("Motivo do cancelamento (opcional):")?.trim().slice(0, 300) || "";
+              updateOrderStatusMutation.mutate({
+                id: order.id,
+                status: "cancelled",
+                reason
+              });
+            }}
+          />
         ) : (
           <AdminSettings />
         )}
@@ -336,6 +385,127 @@ function AdminFragrances({
           ))
         ) : (
           <p className="text-sm text-ink-600">Nenhuma fragrância cadastrada.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function orderStatusLabel(status: Order["status"]): string {
+  switch (status) {
+    case "preparing":
+      return "Em preparação";
+    case "shipped":
+      return "Enviado";
+    case "paid":
+      return "Pago";
+    case "failed":
+      return "Falhou";
+    case "cancelled":
+      return "Cancelado";
+    default:
+      return "Pendente";
+  }
+}
+
+function paymentStatusLabel(status: Order["paymentStatus"]): string {
+  switch (status) {
+    case "approved":
+      return "Aprovado";
+    case "pending":
+    case "in_process":
+      return "Pendente";
+    case "refunded":
+      return "Estornado";
+    case "cancelled":
+      return "Cancelado";
+    case "rejected":
+      return "Recusado";
+    default:
+      return status;
+  }
+}
+
+function AdminOrders({
+  orders,
+  loading,
+  onPrepare,
+  onShip,
+  onCancel
+}: {
+  orders: Order[];
+  loading: boolean;
+  onPrepare: (order: Order) => void;
+  onShip: (order: Order) => void;
+  onCancel: (order: Order) => void;
+}) {
+  return (
+    <div className="glass-panel p-6">
+      <h2 className="font-serif text-2xl text-ink-900">Pedidos</h2>
+      <p className="text-sm text-ink-600">
+        Atualize o status dos pedidos para em preparação, enviado ou cancelado.
+      </p>
+
+      <div className="mt-6 space-y-3">
+        {orders.length ? (
+          orders.map((order) => {
+            const canPrepare = order.status !== "cancelled" && order.status !== "shipped";
+            const canShip = order.status === "paid" || order.status === "preparing";
+            const canCancel = order.status !== "cancelled";
+
+            return (
+              <div
+                key={order.id}
+                className="rounded-2xl border border-sand-200/70 bg-white/80 p-4 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-ink-900">{order.id}</p>
+                  <p className="text-xs uppercase tracking-wide text-ink-500">
+                    {new Date(order.createdAt).toLocaleString("pt-BR")}
+                  </p>
+                </div>
+                <p className="text-ink-700">
+                  {order.customerName} ({order.customerEmail})
+                </p>
+                <p className="text-ink-700">Total: R$ {order.total.toFixed(2)}</p>
+                <p className="text-ink-600">
+                  Status do pedido: <strong>{orderStatusLabel(order.status)}</strong>
+                </p>
+                <p className="text-ink-600">
+                  Pagamento: <strong>{paymentStatusLabel(order.paymentStatus)}</strong>
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={loading || !canPrepare}
+                    onClick={() => onPrepare(order)}
+                  >
+                    Em preparação
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={loading || !canShip}
+                    onClick={() => onShip(order)}
+                  >
+                    Enviado
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading || !canCancel}
+                    onClick={() => onCancel(order)}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-sm text-ink-600">Nenhum pedido encontrado.</p>
         )}
       </div>
     </div>

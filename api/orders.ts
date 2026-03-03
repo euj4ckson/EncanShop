@@ -1,7 +1,15 @@
 import type { Address } from "../src/types/customer";
 import type { CartItem } from "../src/types/cart";
 import type { CheckoutPaymentMethod, Order } from "../src/types/order";
-import { getQueryParam, json, normalizeCep, onlyDigits, parseNumber, readJsonBody } from "./_lib/http.js";
+import {
+  getQueryParam,
+  json,
+  normalizeCep,
+  onlyDigits,
+  parseNumber,
+  readHeader,
+  readJsonBody
+} from "./_lib/http.js";
 import { requireAuthedCustomer } from "./_lib/customerAuth.js";
 import { getAdminEmail, sendEmail } from "./_lib/email.js";
 import {
@@ -14,6 +22,24 @@ import {
 import { buildOrderEmail } from "./_lib/orderEmail.js";
 import { generateId } from "./_lib/security.js";
 import { readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
+
+type AdminOrderStatus = Extract<Order["status"], "preparing" | "shipped" | "cancelled">;
+
+function getAdminPasswordFromEnv(): string {
+  const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
+  if (password) return password;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Configuracao ausente: defina ADMIN_PASSWORD.");
+  }
+  return "encantartes123";
+}
+
+function assertAdminAccess(req: any): void {
+  const headerPassword = readHeader(req.headers?.["x-admin-password"]);
+  if (!headerPassword || headerPassword !== getAdminPasswordFromEnv()) {
+    throw new Error("Nao autorizado.");
+  }
+}
 
 function normalizeAddress(value: Partial<Address>): Address {
   return {
@@ -72,6 +98,21 @@ function areAddressesEqual(a: Address, b: Address): boolean {
   );
 }
 
+function canCustomerCancelOrder(order: Order): boolean {
+  return order.status === "pending_payment" || order.status === "paid";
+}
+
+function appendNote(current: string | undefined, line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed) return current;
+  return [current, trimmed].filter(Boolean).join("\n");
+}
+
+function parseAdminStatus(value: unknown): AdminOrderStatus | null {
+  if (value === "preparing" || value === "shipped" || value === "cancelled") return value;
+  return null;
+}
+
 async function sendOrderNotifications(order: Order): Promise<void> {
   const email = buildOrderEmail(order);
   await Promise.allSettled([
@@ -108,8 +149,100 @@ async function sendOrderStatusNotifications(order: Order): Promise<void> {
   ]);
 }
 
+async function cancelOrderWithPayment(
+  target: Order,
+  reason: string,
+  actor: "cliente" | "admin"
+): Promise<Order> {
+  const noteLine = reason ? `Cancelamento (${actor}): ${reason}` : "";
+  const updated: Order = {
+    ...target,
+    status: "cancelled",
+    notes: appendNote(target.notes, noteLine),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (target.paymentId) {
+    if (target.paymentStatus === "approved") {
+      await refundPaymentById(target.paymentId, target.total);
+      updated.paymentStatus = "refunded";
+    } else if (
+      target.paymentStatus === "pending" ||
+      target.paymentStatus === "in_process" ||
+      target.paymentStatus === "created"
+    ) {
+      const cancelledPayment = await cancelPaymentById(target.paymentId);
+      if (cancelledPayment.status === "approved") {
+        await refundPaymentById(target.paymentId, target.total);
+        updated.paymentStatus = "refunded";
+      } else {
+        const mapped = mapPaymentToOrderStatus(cancelledPayment.status);
+        updated.paymentStatus = mapped.paymentStatus;
+      }
+      updated.status = "cancelled";
+    } else if (target.paymentStatus === "refunded") {
+      updated.paymentStatus = "refunded";
+    } else {
+      updated.paymentStatus = "cancelled";
+    }
+  } else {
+    updated.paymentStatus = target.paymentStatus === "approved" ? "refunded" : "cancelled";
+  }
+
+  return updated;
+}
+
+function updateOrderStatusByAdmin(target: Order, nextStatus: Exclude<AdminOrderStatus, "cancelled">): Order {
+  if (target.status === "cancelled") {
+    throw new Error("Pedido cancelado nao pode ser atualizado.");
+  }
+  return {
+    ...target,
+    status: nextStatus,
+    notes: appendNote(target.notes, `Status atualizado pelo admin: ${nextStatus}`),
+    updatedAt: new Date().toISOString()
+  };
+}
+
 export default async function handler(req: any, res: any) {
   try {
+    const mode = getQueryParam(req.query?.mode);
+
+    if (req.method === "GET" && mode === "admin_all") {
+      assertAdminAccess(req);
+      const orders = await readOrders();
+      return json(res, 200, orders);
+    }
+
+    if (req.method === "PATCH" && mode === "admin_update") {
+      assertAdminAccess(req);
+      const id = getQueryParam(req.query?.id);
+      if (!id) {
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
+      }
+      const body = (await readJsonBody(req)) as { status?: string; reason?: string };
+      const nextStatus = parseAdminStatus(body.status);
+      if (!nextStatus) {
+        return json(res, 400, { error: "Status invalido para atualizacao admin." });
+      }
+      const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+
+      const orders = await readOrders();
+      const target = orders.find((order) => order.id === id);
+      if (!target) {
+        return json(res, 404, { error: "Pedido nao encontrado." });
+      }
+
+      const updated =
+        nextStatus === "cancelled"
+          ? await cancelOrderWithPayment(target, reason, "admin")
+          : updateOrderStatusByAdmin(target, nextStatus);
+
+      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+      await sendOrderStatusNotifications(updated);
+      return json(res, 200, updated);
+    }
+
     const authed = await requireAuthedCustomer(req, res);
     if (!authed) return;
 
@@ -226,13 +359,12 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "PATCH") {
-      const mode = getQueryParam(req.query?.mode);
       if (mode !== "cancel") {
         return json(res, 400, { error: "Modo invalido." });
       }
       const id = getQueryParam(req.query?.id);
       if (!id) {
-        return json(res, 400, { error: "Parâmetro 'id' é obrigatório." });
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
       const body = (await readJsonBody(req)) as { reason?: string };
       const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
@@ -245,41 +377,13 @@ export default async function handler(req: any, res: any) {
       if (target.status === "cancelled") {
         return json(res, 200, target);
       }
-
-      const updated: Order = {
-        ...target,
-        status: "cancelled",
-        notes: [target.notes, reason ? `Cancelamento: ${reason}` : ""].filter(Boolean).join("\n"),
-        updatedAt: new Date().toISOString()
-      };
-
-      if (target.paymentId) {
-        if (target.paymentStatus === "approved") {
-          await refundPaymentById(target.paymentId, target.total);
-          updated.paymentStatus = "refunded";
-        } else if (
-          target.paymentStatus === "pending" ||
-          target.paymentStatus === "in_process" ||
-          target.paymentStatus === "created"
-        ) {
-          const cancelledPayment = await cancelPaymentById(target.paymentId);
-          if (cancelledPayment.status === "approved") {
-            await refundPaymentById(target.paymentId, target.total);
-            updated.paymentStatus = "refunded";
-          } else {
-            const mapped = mapPaymentToOrderStatus(cancelledPayment.status);
-            updated.paymentStatus = mapped.paymentStatus;
-          }
-          updated.status = "cancelled";
-        } else if (target.paymentStatus === "refunded") {
-          updated.paymentStatus = "refunded";
-        } else {
-          updated.paymentStatus = "cancelled";
-        }
-      } else {
-        updated.paymentStatus = target.paymentStatus === "approved" ? "refunded" : "cancelled";
+      if (!canCustomerCancelOrder(target)) {
+        return json(res, 403, {
+          error: "Pedido em preparacao/envio so pode ser cancelado pelo admin."
+        });
       }
 
+      const updated = await cancelOrderWithPayment(target, reason, "cliente");
       await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
       await sendOrderStatusNotifications(updated);
       return json(res, 200, updated);
@@ -289,6 +393,7 @@ export default async function handler(req: any, res: any) {
     return json(res, 405, { error: "Metodo nao permitido." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno.";
-    return json(res, 500, { error: message });
+    const status = message === "Nao autorizado." ? 401 : 500;
+    return json(res, status, { error: message });
   }
 }

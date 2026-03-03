@@ -2,6 +2,13 @@ import type { Address } from "@/types/customer";
 import type { CartItem } from "@/types/cart";
 import type { CheckoutPaymentMethod, Order } from "@/types/order";
 import { requestJson, customerAuthHeaders } from "@/services/http";
+import { getAdminPassword } from "@/lib/auth";
+
+function adminHeaders(): HeadersInit {
+  return {
+    "x-admin-password": getAdminPassword()
+  };
+}
 
 export const OrderRepo = {
   async list(): Promise<Order[]> {
@@ -45,6 +52,32 @@ export const OrderRepo = {
         body: JSON.stringify({ reason })
       },
       { mode: "cancel", id }
+    );
+  },
+
+  async listForAdmin(): Promise<Order[]> {
+    return requestJson<Order[]>(
+      "/api/orders",
+      {
+        headers: adminHeaders()
+      },
+      { mode: "admin_all" }
+    );
+  },
+
+  async updateStatusAsAdmin(input: {
+    id: string;
+    status: "preparing" | "shipped" | "cancelled";
+    reason?: string;
+  }): Promise<Order> {
+    return requestJson<Order>(
+      "/api/orders",
+      {
+        method: "PATCH",
+        headers: adminHeaders(),
+        body: JSON.stringify({ status: input.status, reason: input.reason })
+      },
+      { mode: "admin_update", id: input.id }
     );
   }
 };
