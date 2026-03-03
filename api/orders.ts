@@ -21,7 +21,7 @@ import {
   refundPaymentById
 } from "./_lib/mercadopago.js";
 import { calculateCouponDiscount, normalizeCouponCode } from "./_lib/coupons.js";
-import { buildOrderEmail } from "./_lib/orderEmail.js";
+import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
 import { generateId } from "./_lib/security.js";
 import { readCoupons, readCustomers, readOrders, writeCustomers, writeOrders } from "./_lib/store.js";
 
@@ -141,13 +141,13 @@ async function sendOrderNotifications(order: Order): Promise<void> {
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
-      subject: `Confirmacao do pedido ${order.id}`,
+      subject: customerOrderEmailSubject(order),
       html: email.html,
       text: email.text
     }),
     sendEmail({
       to: getAdminEmail(),
-      subject: `Novo pedido ${order.id}`,
+      subject: adminOrderEmailSubject(order),
       html: email.html,
       text: email.text
     })
@@ -159,13 +159,13 @@ async function sendOrderStatusNotifications(order: Order): Promise<void> {
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
-      subject: `Atualizacao do pedido ${order.id}`,
+      subject: customerOrderEmailSubject(order),
       html: email.html,
       text: email.text
     }),
     sendEmail({
       to: getAdminEmail(),
-      subject: `Atualizacao do pedido ${order.id}`,
+      subject: adminOrderEmailSubject(order),
       html: email.html,
       text: email.text
     })

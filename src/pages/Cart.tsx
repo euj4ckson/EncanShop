@@ -71,6 +71,22 @@ function statusText(order: Order): string {
   return "Aguardando pagamento";
 }
 
+function shouldShowPixQrCode(order: Order): boolean {
+  if (order.paymentMethod !== "pix") return false;
+  if (!order.pixQrCodeBase64) return false;
+  return (
+    order.status === "pending_payment" &&
+    (order.paymentStatus === "created" ||
+      order.paymentStatus === "pending" ||
+      order.paymentStatus === "in_process")
+  );
+}
+
+function isPaymentConfirmed(order: Order): boolean {
+  if (order.paymentStatus === "approved") return true;
+  return order.status === "paid" || order.status === "preparing" || order.status === "shipped";
+}
+
 function couponTypeLabel(type: CouponPreview["type"]): string {
   if (type === "percent") return "Percentual";
   if (type === "fixed") return "Valor fixo";
@@ -84,13 +100,21 @@ function LastOrderCard({
   order: Order;
   whatsappLink: string;
 }) {
+  const showPixQrCode = shouldShowPixQrCode(order);
+  const paymentConfirmed = isPaymentConfirmed(order);
+
   return (
     <div className="rounded-2xl border border-sand-200/70 bg-white/80 p-4">
       <p className="text-xs uppercase tracking-wide text-ink-500">Ultimo pedido</p>
       <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(order.id)}</p>
       <p className="text-sm text-ink-700">{statusText(order)}</p>
+      {paymentConfirmed ? (
+        <div className="mt-3 rounded-xl border border-sage-300 bg-sage-100/80 p-3 text-sm text-ink-900">
+          Pagamento confirmado com sucesso. Seu pedido foi recebido e esta em preparacao.
+        </div>
+      ) : null}
       {order.notes ? <p className="mt-2 text-xs text-ink-600">Observacoes: {order.notes}</p> : null}
-      {order.paymentMethod === "pix" && order.pixQrCodeBase64 ? (
+      {showPixQrCode ? (
         <div className="mt-3 space-y-2">
           <img
             src={`data:image/png;base64,${order.pixQrCodeBase64}`}

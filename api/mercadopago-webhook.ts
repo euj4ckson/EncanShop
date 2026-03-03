@@ -6,7 +6,7 @@ import {
   refundPaymentById,
   validateWebhookSignature
 } from "./_lib/mercadopago.js";
-import { buildOrderEmail } from "./_lib/orderEmail.js";
+import { adminOrderEmailSubject, buildOrderEmail, customerOrderEmailSubject } from "./_lib/orderEmail.js";
 import { readOrders, writeOrders } from "./_lib/store.js";
 
 async function notifyStatusChange(orderId: string) {
@@ -18,13 +18,13 @@ async function notifyStatusChange(orderId: string) {
   await Promise.allSettled([
     sendEmail({
       to: order.customerEmail,
-      subject: `Atualizacao do pedido ${order.id}`,
+      subject: customerOrderEmailSubject(order),
       html: email.html,
       text: email.text
     }),
     sendEmail({
       to: getAdminEmail(),
-      subject: `Atualizacao de pagamento ${order.id}`,
+      subject: adminOrderEmailSubject(order),
       html: email.html,
       text: email.text
     })
