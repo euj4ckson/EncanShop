@@ -837,8 +837,14 @@ function AdminSettings() {
       const failedCount = response.attempts - response.successCount;
       const variant = response.ok ? "success" : "error";
       const failure = response.results.find((item) => !item.customerSent || !item.adminSent);
+      const needsSmtpHint =
+        failure?.customerProvider === "resend" &&
+        String(failure.customerError || "").includes("http-403");
+      const recommendation = needsSmtpHint
+        ? " Configure SMTP_USER/SMTP_PASS (ou EMAIL_USER/EMAIL_PASS) para envio ao cliente."
+        : "";
       const failureHint = failure
-        ? ` Falha em ${failure.stage}: cliente=${failure.customerError || "ok"} (${failure.customerProvider || "n/a"}) admin=${failure.adminError || "ok"} (${failure.adminProvider || "n/a"}).`
+        ? ` Falha em ${failure.stage}: cliente=${failure.customerError || "ok"} (${failure.customerProvider || "n/a"}) admin=${failure.adminError || "ok"} (${failure.adminProvider || "n/a"}).${recommendation}`
         : "";
       toast({
         title: response.ok ? "Teste de e-mail enviado" : "Teste de e-mail com falhas",

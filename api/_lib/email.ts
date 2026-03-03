@@ -110,35 +110,41 @@ function getEmailConfig(): EmailConfig {
     "ORDER_EMAIL_FROM",
     "RESEND_FROM_EMAIL",
     "RESEND_FROM",
+    "EMAIL_FROM",
     "VITE_ORDER_EMAIL_FROM",
     "VITE_RESEND_FROM_EMAIL"
   );
-  const smtpPortRaw = firstEnv("SMTP_PORT", "GMAIL_SMTP_PORT");
-  const smtpUser = firstEnv("SMTP_USER", "GMAIL_USER");
+  const smtpPortRaw = firstEnv("SMTP_PORT", "GMAIL_SMTP_PORT", "EMAIL_PORT", "MAIL_PORT");
+  const smtpUser = firstEnv("SMTP_USER", "GMAIL_USER", "SMTP_USERNAME", "EMAIL_USER", "MAIL_USER");
   const smtpPort = Number(smtpPortRaw || "465");
   const normalizedSmtpPort = Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
   const smtpSecureDefault = normalizedSmtpPort === 465;
-  const smtpSecure = parseBoolean(firstEnv("SMTP_SECURE", "GMAIL_SMTP_SECURE"), smtpSecureDefault);
+  const smtpSecure = parseBoolean(
+    firstEnv("SMTP_SECURE", "GMAIL_SMTP_SECURE", "EMAIL_SECURE", "MAIL_SECURE"),
+    smtpSecureDefault
+  );
   const rejectUnauthorized = parseBoolean(
-    firstEnv("SMTP_TLS_REJECT_UNAUTHORIZED"),
+    firstEnv("SMTP_TLS_REJECT_UNAUTHORIZED", "EMAIL_TLS_REJECT_UNAUTHORIZED", "MAIL_TLS_REJECT_UNAUTHORIZED"),
     true
   );
 
   return {
     resend: {
-      apiKey: firstEnv("RESEND_API_KEY", "VITE_RESEND_API_KEY"),
+      apiKey: firstEnv("RESEND_API_KEY", "VITE_RESEND_API_KEY", "EMAIL_API_KEY"),
       from: resendFrom
     },
     smtp: {
-      host: firstEnv("SMTP_HOST", "GMAIL_SMTP_HOST") || "smtp.gmail.com",
+      host: firstEnv("SMTP_HOST", "GMAIL_SMTP_HOST", "EMAIL_HOST", "MAIL_HOST") || "smtp.gmail.com",
       port: normalizedSmtpPort,
       user: smtpUser,
-      pass: firstEnv("SMTP_PASS", "GMAIL_APP_PASSWORD"),
-      from: firstEnv("SMTP_FROM", "GMAIL_FROM_EMAIL") || smtpUser || resendFrom,
+      pass: firstEnv("SMTP_PASS", "GMAIL_APP_PASSWORD", "SMTP_PASSWORD", "EMAIL_PASS", "MAIL_PASS"),
+      from: firstEnv("SMTP_FROM", "GMAIL_FROM_EMAIL", "EMAIL_FROM", "MAIL_FROM") || smtpUser || resendFrom,
       secure: smtpSecure,
       rejectUnauthorized
     },
-    adminTo: firstEnv("ORDER_ADMIN_EMAIL", "ADMIN_EMAIL", "VITE_ORDER_ADMIN_EMAIL") || "jacksonduardo6@gmail.com"
+    adminTo:
+      firstEnv("ORDER_ADMIN_EMAIL", "ADMIN_EMAIL", "VITE_ORDER_ADMIN_EMAIL", "NOTIFY_EMAIL") ||
+      "jacksonduardo6@gmail.com"
   };
 }
 
@@ -241,6 +247,14 @@ async function sendViaResend(input: {
       }
 
       const details = await response.text();
+      let parsedMessage = "";
+      try {
+        const parsed = JSON.parse(details) as { message?: unknown; error?: unknown };
+        if (typeof parsed.message === "string") parsedMessage = parsed.message;
+        else if (typeof parsed.error === "string") parsedMessage = parsed.error;
+      } catch {
+        parsedMessage = "";
+      }
       if (response.status === 429 && attempt < RATE_LIMIT_MAX_ATTEMPTS) {
         const retryMs = parseRetryDelayMs(response.headers.get("retry-after"), attempt);
         console.warn(
@@ -256,7 +270,9 @@ async function sendViaResend(input: {
       return {
         ok: false,
         provider: "resend",
-        error: `http-${response.status}`
+        error: parsedMessage
+          ? `http-${response.status}:${parsedMessage}`
+          : `http-${response.status}`
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -441,7 +457,7 @@ async function sendEmailInternal(payload: SendEmailInput): Promise<EmailDelivery
     }
     return {
       ok: false,
-      provider: canUseResend ? "resend" : "smtp",
+      provider: "smtp",
       error: smtpAttempt.error || resendAttempt?.error || "smtp-failed",
       subject: payload.subject,
       recipients
