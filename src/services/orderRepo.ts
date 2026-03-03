@@ -98,6 +98,25 @@ export const OrderRepo = {
     );
   },
 
+  async updateTrackingAsAdmin(input: {
+    id: string;
+    trackingCode?: string;
+    trackingUrl?: string;
+  }): Promise<Order> {
+    return requestJson<Order>(
+      "/api/orders",
+      {
+        method: "PATCH",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          trackingCode: input.trackingCode,
+          trackingUrl: input.trackingUrl
+        })
+      },
+      { mode: "admin_tracking", id: input.id }
+    );
+  },
+
   async removeAsAdmin(id: string): Promise<void> {
     await requestJson<void>(
       "/api/orders",

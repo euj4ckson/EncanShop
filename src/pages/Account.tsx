@@ -1,8 +1,6 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronDown,
-  ChevronUp,
   CreditCard,
   LogOut,
   MessageCircle,
@@ -83,6 +81,30 @@ function paymentStatusLabel(status: string): string {
   }
 }
 
+type ShippingStep = {
+  key: string;
+  label: string;
+  done: boolean;
+  active: boolean;
+};
+
+function buildShippingSteps(order: Order): ShippingStep[] {
+  const paymentApproved =
+    order.paymentStatus === "approved" ||
+    order.status === "paid" ||
+    order.status === "preparing" ||
+    order.status === "shipped";
+  const preparing = order.status === "preparing" || order.status === "shipped";
+  const shipped = order.status === "shipped";
+
+  return [
+    { key: "created", label: "Pedido recebido", done: true, active: order.status === "pending_payment" },
+    { key: "payment", label: "Pagamento confirmado", done: paymentApproved, active: !paymentApproved },
+    { key: "preparing", label: "Em preparacao", done: preparing, active: paymentApproved && !preparing },
+    { key: "shipped", label: "Enviado", done: shipped, active: preparing && !shipped }
+  ];
+}
+
 export function Account() {
   useSeo({
     title: "Minha conta",
@@ -105,7 +127,6 @@ export function Account() {
   const [addressDraft, setAddressDraft] = React.useState<AddressDraft>(emptyAddress);
   const [cancelingOrderId, setCancelingOrderId] = React.useState("");
   const [resumingOrderId, setResumingOrderId] = React.useState("");
-  const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: ["customer-orders", customer.customer?.id],
@@ -513,54 +534,96 @@ export function Account() {
               <p className="text-sm text-ink-600">Carregando pedidos...</p>
             ) : ordersQuery.data?.length ? (
               ordersQuery.data.map((order) => {
-                const isExpanded = expandedOrderId === order.id;
                 const isPendingPayment = canRetryPayment(order);
                 const whatsappLink = buildWhatsAppLink(
                   contacts?.whatsapp || "553291109045",
                   `Ola! Quero concluir o pagamento do pedido ${order.id}.`
                 );
+                const shippingSteps = buildShippingSteps(order);
+                const showPixQrCode =
+                  order.paymentMethod === "pix" &&
+                  order.pixQrCodeBase64 &&
+                  order.status === "pending_payment" &&
+                  (order.paymentStatus === "created" ||
+                    order.paymentStatus === "pending" ||
+                    order.paymentStatus === "in_process");
 
                 return (
-                  <div key={order.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">
-                    <button
-                      type="button"
-                      className="w-full text-left"
-                      onClick={() =>
-                        setExpandedOrderId((current) => (current === order.id ? null : order.id))
-                      }
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-ink-900">
-                            {formatOrderLabel(order.id)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs uppercase tracking-wide text-ink-600">
-                            {statusLabel(order.status)}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-ink-500" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-ink-500" />
-                          )}
-                        </div>
+                  <section key={order.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-ink-900">{formatOrderLabel(order.id)}</p>
+                        <p className="mt-1 text-xs text-ink-600">
+                          {new Date(order.createdAt).toLocaleString("pt-BR")}
+                        </p>
+                        <p className="text-sm text-ink-700">
+                          {order.items.length} item(ns) - {formatCurrency(order.total)}
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs text-ink-600">
-                        {new Date(order.createdAt).toLocaleString("pt-BR")}
-                      </p>
-                      <p className="text-sm text-ink-700">
-                        {order.items.length} item(ns) - {formatCurrency(order.total)}
-                      </p>
-                    </button>
-
-                    {isExpanded ? (
-                      <div className="mt-3 space-y-3 border-t border-sand-200/70 pt-3">
-                        <p className="text-xs text-ink-600">
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-wide text-ink-600">
+                          {statusLabel(order.status)}
+                        </p>
+                        <p className="mt-1 text-xs text-ink-600">
                           Pagamento: {paymentMethodLabel(order.paymentMethod)} (
                           {paymentStatusLabel(order.paymentStatus)})
                         </p>
+                      </div>
+                    </div>
 
+                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
+                          Status de envio
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {shippingSteps.map((step) => (
+                            <div key={`${order.id}-${step.key}`} className="flex items-center gap-2">
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${
+                                  step.done
+                                    ? "bg-sage-500"
+                                    : step.active
+                                      ? "bg-gold-500"
+                                      : "bg-sand-300"
+                                }`}
+                              />
+                              <span
+                                className={`text-sm ${
+                                  step.done || step.active ? "text-ink-900" : "text-ink-500"
+                                }`}
+                              >
+                                {step.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 rounded-xl border border-sand-200/70 bg-white/80 p-3 text-xs text-ink-700">
+                          {order.trackingCode ? (
+                            <p>
+                              Codigo de rastreio: <strong>{order.trackingCode}</strong>
+                            </p>
+                          ) : (
+                            <p>Codigo de rastreio ainda nao informado.</p>
+                          )}
+                          {order.trackingUrl ? (
+                            <p className="mt-1">
+                              Acompanhar envio:{" "}
+                              <a
+                                href={order.trackingUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline"
+                              >
+                                Abrir rastreio
+                              </a>
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
                         <div className="rounded-xl border border-sand-200/70 bg-sand-50/60 p-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-ink-600">
                             Itens do pedido
@@ -591,72 +654,73 @@ export function Account() {
                           <p className="mt-1">Frete: {formatCurrency(order.shippingAmount)}</p>
                           <p className="mt-1 font-semibold">Total: {formatCurrency(order.total)}</p>
                         </div>
+                      </div>
+                    </div>
 
-                        {order.notes ? (
-                          <p className="text-xs text-ink-600">Observacoes: {order.notes}</p>
-                        ) : null}
+                    {order.notes ? (
+                      <p className="mt-3 text-xs text-ink-600">Observacoes: {order.notes}</p>
+                    ) : null}
 
-                        {isPendingPayment ? (
-                          <div className="space-y-2">
-                            {order.paymentMethod === "credit_card" ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void handleResumePayment(order)}
-                                disabled={resumingOrderId === order.id}
-                              >
-                                <CreditCard className="h-4 w-4" />
-                                {resumingOrderId === order.id ? "Processando..." : "Pagar com cartao"}
-                              </Button>
-                            ) : order.paymentMethod === "pix" ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void handleResumePayment(order)}
-                                disabled={resumingOrderId === order.id}
-                              >
-                                <QrCode className="h-4 w-4" />
-                                {resumingOrderId === order.id ? "Processando..." : "Pagar com PIX"}
-                              </Button>
-                            ) : (
-                              <Button asChild variant="outline" size="sm">
-                                <a href={whatsappLink} target="_blank" rel="noreferrer">
-                                  <MessageCircle className="h-4 w-4" />
-                                  Finalizar no WhatsApp
-                                </a>
-                              </Button>
-                            )}
-
-                            {order.paymentMethod === "pix" && order.pixQrCodeBase64 ? (
-                              <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
-                                <img
-                                  src={`data:image/png;base64,${order.pixQrCodeBase64}`}
-                                  alt="QR Code PIX"
-                                  className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
-                                />
-                                <Input value={order.pixQrCode || ""} readOnly className="text-xs" />
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {order.status === "pending_payment" || order.status === "paid" ? (
+                    {isPendingPayment ? (
+                      <div className="mt-3 space-y-2">
+                        {order.paymentMethod === "credit_card" ? (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => void handleCancelOrder(order.id, order.status)}
-                            disabled={cancelingOrderId === order.id}
+                            onClick={() => void handleResumePayment(order)}
+                            disabled={resumingOrderId === order.id}
                           >
-                            {cancelingOrderId === order.id
-                              ? "Processando..."
-                              : order.status === "paid"
-                                ? "Cancelar e estornar"
-                                : "Cancelar pedido"}
+                            <CreditCard className="h-4 w-4" />
+                            {resumingOrderId === order.id ? "Processando..." : "Pagar com cartao"}
                           </Button>
+                        ) : order.paymentMethod === "pix" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleResumePayment(order)}
+                            disabled={resumingOrderId === order.id}
+                          >
+                            <QrCode className="h-4 w-4" />
+                            {resumingOrderId === order.id ? "Processando..." : "Pagar com PIX"}
+                          </Button>
+                        ) : (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={whatsappLink} target="_blank" rel="noreferrer">
+                              <MessageCircle className="h-4 w-4" />
+                              Finalizar no WhatsApp
+                            </a>
+                          </Button>
+                        )}
+
+                        {showPixQrCode ? (
+                          <div className="space-y-2 rounded-xl border border-sand-200/70 bg-white/80 p-3">
+                            <img
+                              src={`data:image/png;base64,${order.pixQrCodeBase64}`}
+                              alt="QR Code PIX"
+                              className="mx-auto h-40 w-40 rounded-xl border border-sand-200/70 bg-white p-2"
+                            />
+                            <Input value={order.pixQrCode || ""} readOnly className="text-xs" />
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
-                  </div>
+
+                    {order.status === "pending_payment" || order.status === "paid" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => void handleCancelOrder(order.id, order.status)}
+                        disabled={cancelingOrderId === order.id}
+                      >
+                        {cancelingOrderId === order.id
+                          ? "Processando..."
+                          : order.status === "paid"
+                            ? "Cancelar e estornar"
+                            : "Cancelar pedido"}
+                      </Button>
+                    ) : null}
+                  </section>
                 );
               })
             ) : (

@@ -153,6 +153,16 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
     },
     onError: (error) => showErrorToast("Falha ao excluir pedido", error)
   });
+  const updateOrderTrackingMutation = useMutation({
+    mutationFn: (input: { id: string; trackingCode?: string; trackingUrl?: string }) =>
+      OrderRepo.updateTrackingAsAdmin(input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["customer-orders"] });
+      toast({ title: "Rastreio atualizado", variant: "success" });
+    },
+    onError: (error) => showErrorToast("Falha ao atualizar rastreio", error)
+  });
   const createCouponMutation = useMutation({
     mutationFn: (input: { code: string; type: CouponType; value: number }) => CouponRepo.create(input),
     onSuccess: async () => {
@@ -352,7 +362,8 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
             loading={
               ordersQuery.isLoading ||
               updateOrderStatusMutation.isPending ||
-              deleteOrderMutation.isPending
+              deleteOrderMutation.isPending ||
+              updateOrderTrackingMutation.isPending
             }
             onPrepare={(order) => {
               const isPaid = order.paymentStatus === "approved";
@@ -399,6 +410,25 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
               ) {
                 deleteOrderMutation.mutate(order.id);
               }
+            }}
+            onTracking={(order) => {
+              const currentCode = order.trackingCode || "";
+              const currentUrl = order.trackingUrl || "";
+              const trackingCodeInput = window.prompt(
+                "Codigo de rastreio (deixe vazio para remover):",
+                currentCode
+              );
+              if (trackingCodeInput === null) return;
+              const trackingUrlInput = window.prompt(
+                "Link de rastreio (opcional, deixe vazio para remover):",
+                currentUrl
+              );
+              if (trackingUrlInput === null) return;
+              updateOrderTrackingMutation.mutate({
+                id: order.id,
+                trackingCode: trackingCodeInput.trim() || undefined,
+                trackingUrl: trackingUrlInput.trim() || undefined
+              });
             }}
           />
         ) : tab === "coupons" ? (
@@ -655,7 +685,8 @@ function AdminOrders({
   onPrepare,
   onShip,
   onCancel,
-  onDelete
+  onDelete,
+  onTracking
 }: {
   orders: Order[];
   loading: boolean;
@@ -663,6 +694,7 @@ function AdminOrders({
   onShip: (order: Order) => void;
   onCancel: (order: Order) => void;
   onDelete: (order: Order) => void;
+  onTracking: (order: Order) => void;
 }) {
   return (
     <div className="glass-panel p-6">
@@ -700,6 +732,24 @@ function AdminOrders({
                 <p className="text-ink-600">
                   Pagamento: <strong>{paymentStatusLabel(order.paymentStatus)}</strong>
                 </p>
+                {order.trackingCode ? (
+                  <p className="text-ink-600">
+                    Rastreio: <strong>{order.trackingCode}</strong>
+                  </p>
+                ) : null}
+                {order.trackingUrl ? (
+                  <p className="text-ink-600">
+                    Link:{" "}
+                    <a
+                      href={order.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline"
+                    >
+                      {order.trackingUrl}
+                    </a>
+                  </p>
+                ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -725,6 +775,14 @@ function AdminOrders({
                     onClick={() => onCancel(order)}
                   >
                     Cancelar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loading}
+                    onClick={() => onTracking(order)}
+                  >
+                    Rastreio
                   </Button>
                   <Button
                     variant="ghost"

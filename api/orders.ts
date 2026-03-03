@@ -119,6 +119,30 @@ function parseAdminStatus(value: unknown): AdminOrderStatus | null {
   return null;
 }
 
+function normalizeTrackingCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, 60);
+  return normalized || undefined;
+}
+
+function normalizeTrackingUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const url = trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return undefined;
+    return parsed.toString().slice(0, 500);
+  } catch {
+    return undefined;
+  }
+}
+
 function withCustomerPhoneFallback(orders: Order[], customers: Array<{ id: string; phone?: string }>): Order[] {
   if (!orders.length || !customers.length) return orders;
   const phoneByCustomerId = new Map<string, string>();
@@ -345,6 +369,47 @@ export default async function handler(req: any, res: any) {
         nextStatus === "cancelled"
           ? await cancelOrderWithPayment(target, reason, "admin")
           : updateOrderStatusByAdmin(target, nextStatus);
+
+      await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
+      await sendOrderStatusNotifications(updated);
+      return json(res, 200, updated);
+    }
+
+    if (req.method === "PATCH" && mode === "admin_tracking") {
+      assertAdminAccess(req);
+      const id = getQueryParam(req.query?.id);
+      if (!id) {
+        return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
+      }
+      const body = (await readJsonBody(req)) as {
+        trackingCode?: unknown;
+        trackingUrl?: unknown;
+      };
+
+      const trackingCode = normalizeTrackingCode(body.trackingCode);
+      const trackingUrl = normalizeTrackingUrl(body.trackingUrl);
+      const hasTrackingCode = body.trackingCode !== undefined;
+      const hasTrackingUrl = body.trackingUrl !== undefined;
+      if (!hasTrackingCode && !hasTrackingUrl) {
+        return json(res, 400, { error: "Nada para atualizar no rastreio." });
+      }
+      if (hasTrackingUrl && body.trackingUrl && !trackingUrl) {
+        return json(res, 400, { error: "Link de rastreio invalido." });
+      }
+
+      const orders = await readOrders();
+      const target = orders.find((order) => order.id === id);
+      if (!target) {
+        return json(res, 404, { error: "Pedido nao encontrado." });
+      }
+
+      const updated: Order = {
+        ...target,
+        trackingCode: hasTrackingCode ? trackingCode : target.trackingCode,
+        trackingUrl: hasTrackingUrl ? trackingUrl : target.trackingUrl,
+        notes: appendNote(target.notes, "Rastreio atualizado pelo admin."),
+        updatedAt: new Date().toISOString()
+      };
 
       await writeOrders(orders.map((order) => (order.id === target.id ? updated : order)));
       await sendOrderStatusNotifications(updated);

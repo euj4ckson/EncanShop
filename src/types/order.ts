@@ -48,6 +48,8 @@ export type Order = {
   checkoutUrl?: string;
   pixQrCode?: string;
   pixQrCodeBase64?: string;
+  trackingCode?: string;
+  trackingUrl?: string;
   createdAt: string;
   updatedAt: string;
 };
