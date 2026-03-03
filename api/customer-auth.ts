@@ -18,6 +18,16 @@ function validateEmail(email: string): string | null {
   return null;
 }
 
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 13);
+}
+
+function validatePhone(phone: string): string | null {
+  if (!phone) return null;
+  if (phone.length < 10) return "Informe um telefone valido com DDD.";
+  return null;
+}
+
 type AuthResponse = {
   token: string;
   customer: Customer;
@@ -35,10 +45,12 @@ export default async function handler(req: any, res: any) {
       name?: string;
       email?: string;
       password?: string;
+      phone?: string;
     };
 
     const email = normalizeEmail(body.email || "");
     const password = body.password || "";
+    const phone = normalizePhone(body.phone || "");
 
     const emailError = validateEmail(email);
     if (emailError) {
@@ -48,6 +60,11 @@ export default async function handler(req: any, res: any) {
     const passwordError = validatePassword(password);
     if (passwordError) {
       return json(res, 400, { error: passwordError });
+    }
+
+    const phoneError = validatePhone(phone);
+    if (phoneError) {
+      return json(res, 400, { error: phoneError });
     }
 
     const customers = await readCustomers();
@@ -68,6 +85,7 @@ export default async function handler(req: any, res: any) {
         id: generateId("cus"),
         name,
         email,
+        phone: phone || undefined,
         passwordHash: hashPassword(password),
         addresses: [],
         createdAt: now,

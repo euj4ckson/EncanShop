@@ -27,6 +27,7 @@ export type Order = {
   customerId: string | null;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   customerCpf?: string;
   items: CartItem[];
   address: Address;

@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { canRetryPayment, formatOrderLabel, paymentMethodLabel } from "@/lib/orders";
 import { useSeo } from "@/lib/seo";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPhoneBR, onlyDigits } from "@/lib/utils";
 import { OrderRepo } from "@/services/orderRepo";
 import { useContacts } from "@/services/useContacts";
 import { useCustomer } from "@/store/customer";
@@ -99,6 +99,9 @@ export function Account() {
   const [registerName, setRegisterName] = React.useState("");
   const [registerEmail, setRegisterEmail] = React.useState("");
   const [registerPassword, setRegisterPassword] = React.useState("");
+  const [registerPhone, setRegisterPhone] = React.useState("");
+  const [profilePhone, setProfilePhone] = React.useState("");
+  const [isSavingPhone, setIsSavingPhone] = React.useState(false);
   const [addressDraft, setAddressDraft] = React.useState<AddressDraft>(emptyAddress);
   const [cancelingOrderId, setCancelingOrderId] = React.useState("");
   const [resumingOrderId, setResumingOrderId] = React.useState("");
@@ -131,16 +134,38 @@ export function Account() {
       await customer.register({
         name: registerName,
         email: registerEmail,
-        password: registerPassword
+        password: registerPassword,
+        phone: registerPhone
       });
       toast({ title: "Conta criada", variant: "success" });
       setRegisterPassword("");
+      setRegisterPhone("");
     } catch (error) {
       toast({
         title: "Falha ao cadastrar",
         description: error instanceof Error ? error.message : "Tente novamente.",
         variant: "error"
       });
+    }
+  };
+
+  React.useEffect(() => {
+    setProfilePhone(formatPhoneBR(customer.customer?.phone || ""));
+  }, [customer.customer?.phone]);
+
+  const handleSavePhone = async () => {
+    setIsSavingPhone(true);
+    try {
+      await customer.updatePhone(profilePhone);
+      toast({ title: "Telefone atualizado", variant: "success" });
+    } catch (error) {
+      toast({
+        title: "Falha ao salvar telefone",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "error"
+      });
+    } finally {
+      setIsSavingPhone(false);
     }
   };
 
@@ -310,6 +335,15 @@ export function Account() {
                       required
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="register-phone">Telefone (opcional)</Label>
+                    <Input
+                      id="register-phone"
+                      value={registerPhone}
+                      onChange={(event) => setRegisterPhone(formatPhoneBR(event.target.value))}
+                      placeholder="+55 32 99999-0000"
+                    />
+                  </div>
                   <Button type="submit" className="w-full">
                     Criar conta
                   </Button>
@@ -338,6 +372,9 @@ export function Account() {
         <div>
           <h1 className="font-serif text-3xl text-ink-900">Minha conta</h1>
           <p className="text-sm text-ink-600">{customer.customer.email}</p>
+          <p className="text-sm text-ink-600">
+            {customer.customer.phone ? formatPhoneBR(customer.customer.phone) : "Telefone nao informado"}
+          </p>
         </div>
         <Button
           variant="outline"
@@ -357,6 +394,25 @@ export function Account() {
             <h2 className="font-serif text-xl text-ink-900">Enderecos salvos</h2>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="rounded-2xl border border-sand-200/70 bg-sand-50/60 p-3">
+              <p className="text-sm font-semibold text-ink-900">Telefone de contato</p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={profilePhone}
+                  onChange={(event) => setProfilePhone(formatPhoneBR(event.target.value))}
+                  placeholder="+55 32 99999-0000"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleSavePhone()}
+                  disabled={isSavingPhone || (profilePhone && onlyDigits(profilePhone).length < 10)}
+                >
+                  {isSavingPhone ? "Salvando..." : "Salvar telefone"}
+                </Button>
+              </div>
+            </div>
+
             {customer.customer.addresses.length ? (
               customer.customer.addresses.map((address) => (
                 <div key={address.id} className="rounded-2xl border border-sand-200/70 bg-white/70 p-3">

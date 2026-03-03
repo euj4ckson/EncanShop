@@ -15,6 +15,7 @@ export type Customer = {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   addresses: Address[];
   createdAt: string;
   updatedAt: string;

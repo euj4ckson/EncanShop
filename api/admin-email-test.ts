@@ -1,0 +1,213 @@
+import type { Order, OrderStatus, PaymentStatus } from "../src/types/order";
+import type { Address } from "../src/types/customer";
+import { getAdminEmail, sendEmail } from "./_lib/email.js";
+import { json, normalizeEmail, readHeader, readJsonBody } from "./_lib/http.js";
+import { buildOrderEmail } from "./_lib/orderEmail.js";
+
+type TestStage = "order_created" | "payment_approved" | "preparing" | "shipped";
+
+type StageResult = {
+  stage: TestStage;
+  customerSent: boolean;
+  adminSent: boolean;
+};
+
+type TestPayload = {
+  customerEmail?: string;
+  customerName?: string;
+};
+
+function getAdminPasswordFromEnv(): string {
+  const password = process.env.ADMIN_PASSWORD || process.env.VITE_ADMIN_PASSWORD || "";
+  if (password) return password;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Configuracao ausente: defina ADMIN_PASSWORD.");
+  }
+  return "encantartes123";
+}
+
+function assertAdminAccess(req: any): void {
+  const headerPassword = readHeader(req.headers?.["x-admin-password"]);
+  if (!headerPassword || headerPassword !== getAdminPasswordFromEnv()) {
+    throw new Error("Nao autorizado.");
+  }
+}
+
+function isValidEmail(email: string): boolean {
+  return email.includes("@") && email.length >= 5;
+}
+
+function baseAddress(): Address {
+  return {
+    id: "addr_test",
+    label: "Endereco de teste",
+    cep: "36016380",
+    street: "Rua de Teste",
+    number: "123",
+    neighborhood: "Centro",
+    city: "Juiz de Fora",
+    state: "MG",
+    complement: "",
+    reference: "Proximo ao comercio local"
+  };
+}
+
+function subjectByStage(stage: TestStage, orderId: string): string {
+  if (stage === "order_created") return `[Teste] Pedido realizado - ${orderId}`;
+  if (stage === "payment_approved") return `[Teste] Pagamento confirmado - ${orderId}`;
+  if (stage === "preparing") return `[Teste] Pedido em preparacao - ${orderId}`;
+  return `[Teste] Pedido enviado - ${orderId}`;
+}
+
+function statusByStage(stage: TestStage): { status: OrderStatus; paymentStatus: PaymentStatus } {
+  if (stage === "order_created") {
+    return { status: "pending_payment", paymentStatus: "created" };
+  }
+  if (stage === "payment_approved") {
+    return { status: "paid", paymentStatus: "approved" };
+  }
+  if (stage === "preparing") {
+    return { status: "preparing", paymentStatus: "approved" };
+  }
+  return { status: "shipped", paymentStatus: "approved" };
+}
+
+function createTestOrder(input: {
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  stage: TestStage;
+  baseTime: Date;
+  index: number;
+}): Order {
+  const { status, paymentStatus } = statusByStage(input.stage);
+  const createdAt = new Date(input.baseTime.getTime() + input.index * 60_000).toISOString();
+  const updatedAt = new Date(input.baseTime.getTime() + input.index * 90_000).toISOString();
+
+  return {
+    id: input.orderId,
+    customerId: "cus_test",
+    customerName: input.customerName,
+    customerEmail: input.customerEmail,
+    customerPhone: "32999990000",
+    customerCpf: "12345678909",
+    items: [
+      {
+        productId: "prd_test",
+        name: "Vela Aromatica de Teste",
+        price: 39.9,
+        quantity: 1,
+        variant: "Branca",
+        fragrance: "Baunilha"
+      }
+    ],
+    address: baseAddress(),
+    shippingOriginalAmount: 16.9,
+    shippingAmount: 16.9,
+    subtotal: 39.9,
+    total: 56.8,
+    paymentMethod: "pix",
+    paymentStatus,
+    status,
+    notes: "Este e um e-mail de validacao disparado pelo painel admin.",
+    createdAt,
+    updatedAt
+  };
+}
+
+async function sendStageEmail(input: {
+  stage: TestStage;
+  order: Order;
+  customerEmail: string;
+  adminEmail: string;
+}): Promise<StageResult> {
+  const email = buildOrderEmail(input.order);
+  const subject = subjectByStage(input.stage, input.order.id);
+
+  const [customerSent, adminSent] = await Promise.all([
+    sendEmail({
+      to: input.customerEmail,
+      subject,
+      html: email.html,
+      text: email.text
+    }),
+    sendEmail({
+      to: input.adminEmail,
+      subject,
+      html: email.html,
+      text: email.text
+    })
+  ]);
+
+  return {
+    stage: input.stage,
+    customerSent,
+    adminSent
+  };
+}
+
+export default async function handler(req: any, res: any) {
+  try {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return json(res, 405, { error: "Metodo nao permitido." });
+    }
+
+    assertAdminAccess(req);
+
+    const body = (await readJsonBody(req)) as TestPayload;
+    const adminEmail = getAdminEmail();
+    const customerEmail = normalizeEmail(body.customerEmail || adminEmail);
+    const customerName = (body.customerName || "Cliente Teste").trim().slice(0, 80);
+    if (!isValidEmail(customerEmail)) {
+      return json(res, 400, { error: "E-mail de teste invalido." });
+    }
+    if (!isValidEmail(adminEmail)) {
+      return json(res, 500, { error: "ORDER_ADMIN_EMAIL invalido." });
+    }
+
+    const baseTime = new Date();
+    const baseId = `TESTE-${baseTime.getTime().toString(36).toUpperCase()}`;
+    const stages: TestStage[] = ["order_created", "payment_approved", "preparing", "shipped"];
+    const results: StageResult[] = [];
+
+    for (let index = 0; index < stages.length; index += 1) {
+      const stage = stages[index];
+      const order = createTestOrder({
+        orderId: `${baseId}-${index + 1}`,
+        customerName,
+        customerEmail,
+        stage,
+        baseTime,
+        index
+      });
+
+      const sent = await sendStageEmail({
+        stage,
+        order,
+        customerEmail,
+        adminEmail
+      });
+      results.push(sent);
+    }
+
+    const successCount = results.reduce((acc, item) => {
+      return acc + (item.customerSent ? 1 : 0) + (item.adminSent ? 1 : 0);
+    }, 0);
+    const attempts = results.length * 2;
+    const ok = successCount === attempts;
+
+    return json(res, 200, {
+      ok,
+      adminEmail,
+      customerEmail,
+      results,
+      successCount,
+      attempts
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno.";
+    const status = message === "Nao autorizado." ? 401 : 500;
+    return json(res, status, { error: message });
+  }
+}

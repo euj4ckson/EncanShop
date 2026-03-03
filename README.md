@@ -7,8 +7,10 @@ Projeto da loja EncantArtes com vitrine, carrinho, checkout online, area do clie
 - Checkout com WhatsApp, PIX (QR Code) e cartao de credito (ate 4x) via Mercado Pago.
 - Webhook oficial do Mercado Pago para atualizacao automatica de status.
 - Pagamento aprovado move o pedido automaticamente para `em preparacao`.
+- Em pedidos pendentes, o cliente tambem sincroniza status na consulta do pedido (fallback), evitando tela travada se webhook atrasar.
 - Cupons de desconto (valor fixo, percentual e frete gratis) com aplicacao no checkout.
 - Area do cliente com cadastro/login, enderecos salvos e pedidos.
+- Area do cliente com cadastro/login, telefone de contato, enderecos salvos e pedidos.
 - Lista de pedidos do cliente expansivel (itens, endereco, totais, observacoes, status).
 - Retomada de pagamento de pedido pendente/falho pela area do cliente, no mesmo metodo original do pedido.
 - Painel admin com gestao de produtos, fragrancias globais, cupons, status de pedidos e exclusao de pedidos.
@@ -55,6 +57,8 @@ Caso nao exista, a aplicacao usa `encantartes123` e exibe um alerta no login.
   - Atualizar status para `em preparacao`, `enviado` e `cancelado`.
   - Se o pedido estiver sem pagamento aprovado, o painel pede confirmacao explicita antes de avancar para `em preparacao`/`enviado`.
   - Excluir pedido com confirmacao previa (somente admin).
+- Configuracoes:
+  - Botao para disparar teste das notificacoes de e-mail (pedido realizado, pagamento confirmado, em preparacao e enviado).
 
 ## Produtos compartilhados (Vercel Blob + Redis)
 
@@ -85,12 +89,15 @@ APP_BASE_URL="https://seu-dominio.com"
 RESEND_API_KEY="..."
 ORDER_EMAIL_FROM="EncantArtes <pedidos@seu-dominio.com>"
 ORDER_ADMIN_EMAIL="jacksonduardo6@gmail.com"
+# aliases aceitos (opcional): RESEND_FROM_EMAIL/RESEND_FROM e ADMIN_EMAIL
 ```
 
 Observacoes de seguranca:
 
 - Em producao, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` sao obrigatorios.
 - Sem `MP_WEBHOOK_SECRET` em producao, o webhook e rejeitado por seguranca.
+- Para envio de e-mails via Resend, o remetente (`ORDER_EMAIL_FROM`) precisa estar em dominio/verificacao aceita pelo Resend.
+- Falhas de envio agora sao registradas nos logs da funcao serverless (`[email] ...`) para diagnostico no painel da Vercel.
 
 4. Faca um novo deploy.
 
@@ -116,6 +123,8 @@ Fluxos suportados:
 
 - `/api/customer-auth` (cadastro/login)
 - `/api/customer-profile` (perfil e enderecos)
+  - inclui atualizacao de telefone de contato do cliente
+- `/api/admin-email-test` (teste de notificacoes por e-mail, protegido por senha admin)
 - `/api/shipping` (calculo de frete por CEP)
 - `/api/orders` (criacao, consulta, cancelamento, retomada de pagamento, atualizacao/exclusao admin)
 - `/api/fragrances` (fragrancias globais)

@@ -2,7 +2,12 @@ import type { Address, AuthPayload, Customer } from "@/types/customer";
 import { requestJson, customerAuthHeaders } from "@/services/http";
 
 export const CustomerRepo = {
-  async register(input: { name: string; email: string; password: string }): Promise<AuthPayload> {
+  async register(input: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+  }): Promise<AuthPayload> {
     return requestJson<AuthPayload>(
       "/api/customer-auth",
       {
@@ -35,6 +40,14 @@ export const CustomerRepo = {
       method: "PUT",
       headers: customerAuthHeaders(),
       body: JSON.stringify({ name })
+    });
+  },
+
+  async updateProfile(input: { name?: string; phone?: string }): Promise<Customer> {
+    return requestJson<Customer>("/api/customer-profile", {
+      method: "PUT",
+      headers: customerAuthHeaders(),
+      body: JSON.stringify(input)
     });
   },
 

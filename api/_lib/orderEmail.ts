@@ -46,6 +46,7 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
   );
   const safeCustomerName = escapeHtml(order.customerName);
   const safeCustomerEmail = escapeHtml(order.customerEmail);
+  const safeCustomerPhone = order.customerPhone ? escapeHtml(order.customerPhone) : "";
   const safePaymentMethod = escapeHtml(order.paymentMethod);
   const safeNotes = order.notes ? escapeHtml(order.notes) : "";
   const safeCouponCode = order.couponCode ? escapeHtml(order.couponCode) : "";
@@ -57,6 +58,7 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
       <h2>Pedido ${order.id}</h2>
       <p><strong>Status:</strong> ${status}</p>
       <p><strong>Cliente:</strong> ${safeCustomerName} (${safeCustomerEmail})</p>
+      ${safeCustomerPhone ? `<p><strong>Telefone:</strong> ${safeCustomerPhone}</p>` : ""}
       <p><strong>Endereco:</strong> ${address}</p>
       <p><strong>Pagamento:</strong> ${safePaymentMethod}</p>
       ${safeNotes ? `<p><strong>Observacoes:</strong> ${safeNotes}</p>` : ""}
@@ -70,6 +72,7 @@ export function buildOrderEmail(order: Order): { subject: string; html: string; 
       `Pedido ${order.id}`,
       `Status: ${status}`,
       `Cliente: ${order.customerName} (${order.customerEmail})`,
+      ...(order.customerPhone ? [`Telefone: ${order.customerPhone}`] : []),
       `Endereco: ${address}`,
       `Pagamento: ${order.paymentMethod}`,
       ...(order.notes ? [`Observacoes: ${order.notes}`] : []),
