@@ -96,7 +96,7 @@ SMTP_PORT="465"
 SMTP_SECURE="true"
 SMTP_USER="seuemail@gmail.com"
 SMTP_PASS="sua-app-password-do-gmail"
-SMTP_FROM="EncantArtes <seuemail@gmail.com>"
+SMTP_FROM="EncantArtes <seuemail@gmail.com>" # opcional; se vazio, usa SMTP_USER
 ```
 
 Observacoes de seguranca:
@@ -104,6 +104,7 @@ Observacoes de seguranca:
 - Em producao, `CUSTOMER_AUTH_SECRET`, `ADMIN_PASSWORD` e `MP_WEBHOOK_SECRET` sao obrigatorios.
 - Sem `MP_WEBHOOK_SECRET` em producao, o webhook e rejeitado por seguranca.
 - Para envio de e-mails via Resend, o remetente (`ORDER_EMAIL_FROM`) precisa estar em dominio/verificacao aceita pelo Resend.
+- Se estiver usando `onboarding@resend.dev`, o Resend limita destinatarios; para cliente final, configure `SMTP_*` (fallback automatico).
 - Sem dominio proprio no Resend, o sistema pode usar fallback SMTP automaticamente quando `SMTP_*` estiver configurado.
 - Para Gmail SMTP, use App Password (conta com verificacao em 2 etapas).
 - Falhas de envio agora sao registradas nos logs da funcao serverless (`[email] ...`) para diagnostico no painel da Vercel.

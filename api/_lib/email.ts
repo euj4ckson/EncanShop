@@ -40,6 +40,7 @@ const SHARED_EMAIL_DOMAINS = new Set([
   "yahoo.com",
   "icloud.com"
 ]);
+const RESEND_SANDBOX_DOMAIN = "resend.dev";
 
 let smtpTransporter: nodemailer.Transporter | null = null;
 let smtpTransportKey = "";
@@ -99,6 +100,7 @@ function getEmailConfig(): EmailConfig {
     "VITE_RESEND_FROM_EMAIL"
   );
   const smtpPortRaw = firstEnv("SMTP_PORT", "GMAIL_SMTP_PORT");
+  const smtpUser = firstEnv("SMTP_USER", "GMAIL_USER");
   const smtpPort = Number(smtpPortRaw || "465");
   const normalizedSmtpPort = Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
   const smtpSecureDefault = normalizedSmtpPort === 465;
@@ -116,9 +118,9 @@ function getEmailConfig(): EmailConfig {
     smtp: {
       host: firstEnv("SMTP_HOST", "GMAIL_SMTP_HOST") || "smtp.gmail.com",
       port: normalizedSmtpPort,
-      user: firstEnv("SMTP_USER", "GMAIL_USER"),
+      user: smtpUser,
       pass: firstEnv("SMTP_PASS", "GMAIL_APP_PASSWORD"),
-      from: firstEnv("SMTP_FROM", "GMAIL_FROM_EMAIL") || resendFrom,
+      from: firstEnv("SMTP_FROM", "GMAIL_FROM_EMAIL") || smtpUser || resendFrom,
       secure: smtpSecure,
       rejectUnauthorized
     },
@@ -137,6 +139,10 @@ function hasResendConfig(config: EmailConfig): boolean {
 function hasSmtpConfig(config: EmailConfig): boolean {
   const smtp = config.smtp;
   return Boolean(smtp.host && smtp.port && smtp.user && smtp.pass && smtp.from);
+}
+
+function isResendSandboxFromAddress(from: string): boolean {
+  return getEmailDomain(from) === RESEND_SANDBOX_DOMAIN;
 }
 
 function isSharedProviderFromAddress(from: string): boolean {
@@ -315,8 +321,30 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
     return false;
   }
 
+  const canUseResend = hasResendConfig(config);
+  const canUseSmtp = hasSmtpConfig(config);
+  const preferSmtp = canUseSmtp && isResendSandboxFromAddress(config.resend.from);
+
+  if (!canUseSmtp && canUseResend && isResendSandboxFromAddress(config.resend.from)) {
+    console.warn(
+      "[email] ORDER_EMAIL_FROM usa resend.dev sem SMTP configurado. Destinatarios externos podem falhar."
+    );
+  }
+
+  if (preferSmtp) {
+    const smtpAttempt = await sendViaSmtp({
+      config,
+      recipients,
+      payload
+    });
+    if (smtpAttempt.ok) return true;
+    console.warn(
+      `[email] SMTP falhou (${smtpAttempt.error || "erro desconhecido"}). Tentando Resend como fallback.`
+    );
+  }
+
   let resendAttempt: SendAttempt | null = null;
-  if (hasResendConfig(config)) {
+  if (canUseResend) {
     resendAttempt = await sendViaResend({
       config,
       recipients,
@@ -324,12 +352,14 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
     });
     if (resendAttempt.ok) return true;
 
-    console.warn(
-      `[email] Resend indisponivel (${resendAttempt.error || "erro desconhecido"}). Tentando SMTP fallback.`
-    );
+    if (!preferSmtp) {
+      console.warn(
+        `[email] Resend indisponivel (${resendAttempt.error || "erro desconhecido"}). Tentando SMTP fallback.`
+      );
+    }
   }
 
-  if (hasSmtpConfig(config)) {
+  if (canUseSmtp && !preferSmtp) {
     const smtpAttempt = await sendViaSmtp({
       config,
       recipients,
@@ -338,7 +368,7 @@ export async function sendEmail(payload: SendEmailInput): Promise<boolean> {
     if (smtpAttempt.ok) return true;
   }
 
-  if (!hasResendConfig(config) && !hasSmtpConfig(config)) {
+  if (!canUseResend && !canUseSmtp) {
     console.error(
       "[email] Configuracao incompleta. Configure Resend (RESEND_API_KEY + ORDER_EMAIL_FROM) ou SMTP (SMTP_HOST/PORT/USER/PASS/FROM)."
     );
