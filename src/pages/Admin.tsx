@@ -124,8 +124,12 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
     onError: (error) => showErrorToast("Falha ao remover fragrância", error)
   });
   const updateOrderStatusMutation = useMutation({
-    mutationFn: (input: { id: string; status: "preparing" | "shipped" | "cancelled"; reason?: string }) =>
-      OrderRepo.updateStatusAsAdmin(input),
+    mutationFn: (input: {
+      id: string;
+      status: "preparing" | "shipped" | "cancelled";
+      reason?: string;
+      forceUnpaidTransition?: boolean;
+    }) => OrderRepo.updateStatusAsAdmin(input),
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       await queryClient.invalidateQueries({ queryKey: ["customer-orders"] });
@@ -349,10 +353,34 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
               updateOrderStatusMutation.isPending ||
               deleteOrderMutation.isPending
             }
-            onPrepare={(order) =>
-              updateOrderStatusMutation.mutate({ id: order.id, status: "preparing" })
-            }
-            onShip={(order) => updateOrderStatusMutation.mutate({ id: order.id, status: "shipped" })}
+            onPrepare={(order) => {
+              const isPaid = order.paymentStatus === "approved";
+              if (!isPaid) {
+                const confirmed = window.confirm(
+                  "Este pedido ainda nao foi pago. Deseja realmente colocar como em preparacao mesmo assim?"
+                );
+                if (!confirmed) return;
+              }
+              updateOrderStatusMutation.mutate({
+                id: order.id,
+                status: "preparing",
+                forceUnpaidTransition: !isPaid
+              });
+            }}
+            onShip={(order) => {
+              const isPaid = order.paymentStatus === "approved";
+              if (!isPaid) {
+                const confirmed = window.confirm(
+                  "Este pedido ainda nao foi pago. Deseja realmente marcar como enviado mesmo assim?"
+                );
+                if (!confirmed) return;
+              }
+              updateOrderStatusMutation.mutate({
+                id: order.id,
+                status: "shipped",
+                forceUnpaidTransition: !isPaid
+              });
+            }}
             onCancel={(order) => {
               const reason =
                 window.prompt("Motivo do cancelamento (opcional):")?.trim().slice(0, 300) || "";
@@ -646,7 +674,7 @@ function AdminOrders({
         {orders.length ? (
           orders.map((order) => {
             const canPrepare = order.status !== "cancelled" && order.status !== "shipped";
-            const canShip = order.status === "paid" || order.status === "preparing";
+            const canShip = order.status !== "cancelled" && order.status !== "shipped";
             const canCancel = order.status !== "cancelled";
 
             return (

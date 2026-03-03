@@ -225,7 +225,11 @@ export default async function handler(req: any, res: any) {
       if (!id) {
         return json(res, 400, { error: "Parametro 'id' e obrigatorio." });
       }
-      const body = (await readJsonBody(req)) as { status?: string; reason?: string };
+      const body = (await readJsonBody(req)) as {
+        status?: string;
+        reason?: string;
+        forceUnpaidTransition?: boolean;
+      };
       const nextStatus = parseAdminStatus(body.status);
       if (!nextStatus) {
         return json(res, 400, { error: "Status invalido para atualizacao admin." });
@@ -236,6 +240,16 @@ export default async function handler(req: any, res: any) {
       const target = orders.find((order) => order.id === id);
       if (!target) {
         return json(res, 404, { error: "Pedido nao encontrado." });
+      }
+
+      const isPaid = target.paymentStatus === "approved";
+      if ((nextStatus === "preparing" || nextStatus === "shipped") && !isPaid) {
+        if (body.forceUnpaidTransition !== true) {
+          return json(res, 409, {
+            error:
+              "Pedido nao foi pago. Confirme explicitamente para avancar mesmo sem pagamento."
+          });
+        }
       }
 
       const updated =
