@@ -57,11 +57,13 @@ export type AdminProductFormValues = z.infer<typeof productSchema>;
 export function AdminProductForm({
   initialValues,
   onSubmit,
-  onCancel
+  onCancel,
+  submitting = false
 }: {
   initialValues?: AdminProductFormValues;
   onSubmit: (values: AdminProductFormValues) => void;
   onCancel?: () => void;
+  submitting?: boolean;
 }) {
   const form = useForm<AdminProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -238,9 +240,11 @@ export function AdminProductForm({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Button type="submit">Salvar</Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? "Salvando..." : "Salvar"}
+        </Button>
         {onCancel ? (
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
             Cancelar
           </Button>
         ) : null}

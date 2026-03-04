@@ -28,6 +28,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
   >("products");
   const [search, setSearch] = React.useState("");
   const [selected, setSelected] = React.useState<Product | null>(null);
+  const [productFormResetKey, setProductFormResetKey] = React.useState(0);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -273,7 +274,14 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                   className="pl-9"
                 />
               </div>
-              <Button variant="secondary" onClick={() => setSelected(null)} className="gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSelected(null);
+                  setProductFormResetKey((value) => value + 1);
+                }}
+                className="gap-2"
+              >
                 <Plus className="h-4 w-4" />
                 Novo produto
               </Button>
@@ -317,6 +325,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                 ))}
               </div>
               <AdminProductForm
+                key={`${selected?.id ?? "new"}-${productFormResetKey}`}
                 initialValues={
                   selected
                     ? {
@@ -332,6 +341,7 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                       }
                     : undefined
                 }
+                submitting={createMutation.isPending || updateMutation.isPending}
                 onSubmit={(values) => {
                   if (selected) {
                     updateMutation.mutate({ id: selected.id, values });
@@ -339,8 +349,12 @@ export function Admin({ onLogout }: { onLogout: () => void }) {
                     createMutation.mutate(values);
                   }
                   setSelected(null);
+                  setProductFormResetKey((value) => value + 1);
                 }}
-                onCancel={() => setSelected(null)}
+                onCancel={() => {
+                  setSelected(null);
+                  setProductFormResetKey((value) => value + 1);
+                }}
               />
             </div>
           </div>
