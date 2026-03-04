@@ -1,6 +1,6 @@
-import * as React from "react";
+﻿import * as React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -64,7 +64,7 @@ function toAddressInput(value: AddressDraft): Partial<Address> {
 }
 
 function statusText(order: Order): string {
-  if (order.status === "preparing") return "Em preparação";
+  if (order.status === "preparing") return "Em preparaÃ§Ã£o";
   if (order.status === "shipped") return "Enviado";
   if (order.status === "paid") return "Pagamento aprovado";
   if (order.status === "failed") return "Pagamento recusado";
@@ -150,7 +150,7 @@ function LastOrderCard({
 export function Cart() {
   useSeo({
     title: "Carrinho",
-    description: "Finalize seu pedido com PIX, cartão ou WhatsApp."
+    description: "Finalize seu pedido com PIX, cartÃ£o ou WhatsApp."
   });
 
   const navigate = useNavigate();
@@ -398,8 +398,8 @@ export function Cart() {
   const handleCreateOrder = async () => {
     if (!customer.isAuthed) {
       toast({
-        title: "Faça login para continuar",
-        description: "Para pagar com PIX ou cartão, entre na sua conta.",
+        title: "FaÃ§a login para continuar",
+        description: "Para pagar com PIX ou cartÃ£o, entre na sua conta.",
         variant: "error"
       });
       navigate("/conta");
@@ -408,15 +408,15 @@ export function Cart() {
     if (!shippingQuote) {
       toast({
         title: "Calcule o frete",
-        description: "Informe o CEP e aguarde o cálculo automático.",
+        description: "Informe o CEP e aguarde o cÃ¡lculo automÃ¡tico.",
         variant: "error"
       });
       return;
     }
     if (paymentMethod === "pix" && onlyDigits(cpf).length !== 11) {
       toast({
-        title: "CPF inválido",
-        description: "Para PIX, informe um CPF com 11 dígitos.",
+        title: "CPF invÃ¡lido",
+        description: "Para PIX, informe um CPF com 11 dÃ­gitos.",
         variant: "error"
       });
       return;
@@ -510,7 +510,7 @@ export function Cart() {
     return (
       <div className="section-shell pb-12 pt-28 text-center">
         <div className="glass-panel mx-auto max-w-lg p-8">
-          <p className="text-lg text-ink-700">Seu carrinho está vazio.</p>
+          <p className="text-lg text-ink-700">Seu carrinho estÃ¡ vazio.</p>
           <PrefetchLink
             to="/"
             className="mt-4 inline-flex rounded-full border border-sand-200/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-600 transition hover:bg-white"
@@ -560,12 +560,12 @@ export function Cart() {
                   <p className="font-semibold text-ink-900">{item.name}</p>
                   {item.variant ? (
                     <p className="text-xs font-medium uppercase tracking-wide text-ink-500">
-                      Cor/Variação: {item.variant}
+                      Cor/VariaÃ§Ã£o: {item.variant}
                     </p>
                   ) : null}
                   {item.fragrance ? (
                     <p className="text-xs font-medium uppercase tracking-wide text-ink-500">
-                      Fragrância: {item.fragrance}
+                      FragrÃ¢ncia: {item.fragrance}
                     </p>
                   ) : null}
                   <p className="text-sm text-ink-600">{formatCurrency(item.price)}</p>
@@ -620,7 +620,7 @@ export function Cart() {
                 />
               </div>
               <div>
-                <Label htmlFor="checkout-number">Número</Label>
+                <Label htmlFor="checkout-number">NÃºmero</Label>
                 <Input
                   id="checkout-number"
                   value={address.number}
@@ -680,7 +680,7 @@ export function Cart() {
                 />
               </div>
               <div>
-                <Label htmlFor="checkout-reference">Referência</Label>
+                <Label htmlFor="checkout-reference">ReferÃªncia</Label>
                 <Input
                   id="checkout-reference"
                   value={address.reference}
@@ -691,7 +691,7 @@ export function Cart() {
               </div>
             </div>
             <div className="text-sm text-ink-600">
-              {isQuoting ? "Calculando frete..." : shippingQuote ? `Frete calculado: ${formatCurrency(shippingQuote.amount)} (${shippingQuote.etaDays} dias úteis)` : "Informe o CEP para calcular o frete automaticamente."}
+              {isQuoting ? "Calculando frete..." : shippingQuote ? `Frete calculado: ${formatCurrency(shippingQuote.amount)} (${shippingQuote.etaDays} dias Ãºteis)` : "Informe o CEP para calcular o frete automaticamente."}
             </div>
           </div>
         </div>
@@ -752,7 +752,7 @@ export function Cart() {
           </div>
 
           <div className="mt-5 space-y-3">
-            <Label>Método de pagamento</Label>
+            <Label>MÃ©todo de pagamento</Label>
             <div className="grid gap-2">
               <Button
                 type="button"
@@ -774,9 +774,10 @@ export function Cart() {
                 type="button"
                 variant={paymentMethod === "credit_card" ? "primary" : "outline"}
                 onClick={() => setPaymentMethod("credit_card")}
-                className="justify-start"
+                className="justify-start gap-2"
               >
-                Cartão de crédito (até 4x)
+                <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Cartão de crédito (Pagamento Seguro)</span>
               </Button>
             </div>
           </div>
@@ -818,7 +819,7 @@ export function Cart() {
 
           {!customer.isAuthed && paymentMethod !== "whatsapp" ? (
             <p className="mt-2 text-xs text-ink-600">
-              Pagamentos online exigem login para salvar endereço e acompanhar pedidos.
+              Pagamentos online exigem login para salvar endereÃ§o e acompanhar pedidos.
             </p>
           ) : null}
 
@@ -845,4 +846,5 @@ export function Cart() {
     </div>
   );
 }
+
 
