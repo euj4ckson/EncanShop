@@ -84,7 +84,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       updateQuantity: (itemKey: string, quantity: number) =>
         dispatch({ type: "UPDATE", itemKey, quantity }),
       getItemKey,
-      clear: () => dispatch({ type: "CLEAR" })
+      clear: () => {
+        // Persist immediately to avoid stale cart when navigation happens right after clear.
+        writeStorage(CART_STORAGE_KEY, emptyState);
+        dispatch({ type: "CLEAR" });
+      }
     };
   }, [state]);
 

@@ -436,6 +436,10 @@ export function Cart() {
       });
       setLastOrder(order);
       if (order.checkoutUrl) {
+        setOrderNotes("");
+        setAppliedCoupon(null);
+        setCouponCode("");
+        clear();
         window.location.href = order.checkoutUrl;
         return;
       }
