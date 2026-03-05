@@ -93,9 +93,10 @@ export default async function handler(req: any, res: any) {
       if (!next.type) {
         return json(res, 400, { error: "Tipo de cupom invalido." });
       }
+      const nextType: CouponType = next.type;
       const payloadError = validateCouponPayload({
         code: next.code,
-        type: next.type,
+        type: nextType,
         value: next.value
       });
       if (payloadError) {
@@ -113,8 +114,8 @@ export default async function handler(req: any, res: any) {
         const created: Coupon = {
           id: generateId("cup"),
           code: next.code,
-          type: next.type,
-          value: next.type === "free_shipping" ? 0 : Number(next.value.toFixed(2)),
+          type: nextType,
+          value: nextType === "free_shipping" ? 0 : Number(next.value.toFixed(2)),
           active: next.active,
           createdAt: now,
           updatedAt: now

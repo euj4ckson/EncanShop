@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import { createRequire } from "node:module";
 
 type SendEmailInput = {
   to: string | string[];
@@ -30,6 +30,17 @@ type SendAttempt = {
   error?: string;
 };
 
+type SmtpTransporter = {
+  sendMail: (input: {
+    from: string;
+    replyTo?: string;
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+  }) => Promise<unknown>;
+};
+
 export type EmailDeliveryResult = {
   ok: boolean;
   provider: "resend" | "smtp" | "none";
@@ -52,7 +63,23 @@ const RESEND_SANDBOX_DOMAIN = "resend.dev";
 const DEFAULT_SMTP_FROM_NAME = "EncantArtes";
 const DEFAULT_PAIR_INTERVAL_MS = 750;
 
-let smtpTransporter: nodemailer.Transporter | null = null;
+const require = createRequire(import.meta.url);
+const nodemailer = require("nodemailer") as {
+  createTransport: (input: {
+    host: string;
+    port: number;
+    secure: boolean;
+    auth: {
+      user: string;
+      pass: string;
+    };
+    tls: {
+      rejectUnauthorized: boolean;
+    };
+  }) => SmtpTransporter;
+};
+
+let smtpTransporter: SmtpTransporter | null = null;
 let smtpTransportKey = "";
 
 function firstEnv(...keys: string[]): string {
@@ -377,7 +404,7 @@ function buildSmtpTransportKey(config: EmailConfig): string {
   ].join("|");
 }
 
-function getSmtpTransporter(config: EmailConfig): nodemailer.Transporter {
+function getSmtpTransporter(config: EmailConfig): SmtpTransporter {
   const nextKey = buildSmtpTransportKey(config);
   if (smtpTransporter && smtpTransportKey === nextKey) {
     return smtpTransporter;
